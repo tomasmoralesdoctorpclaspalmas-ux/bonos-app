@@ -370,3 +370,29 @@ export const addPunctualIntervention = async (data) => {
         throw error;
     }
 };
+
+// Update punctual intervention (mainly for notes)
+export const updatePunctualIntervention = async (id, data) => {
+    try {
+        const docRef = doc(db, PUNCTUAL_INTERVENTIONS_COLLECTION, id);
+        await updateDoc(docRef, {
+            ...data,
+            updatedAt: Timestamp.now()
+        });
+        return { id, ...data };
+    } catch (error) {
+        console.error('Error updating punctual intervention:', error);
+        throw error;
+    }
+};
+
+// Delete punctual intervention
+export const deletePunctualIntervention = async (id) => {
+    try {
+        const docRef = doc(db, PUNCTUAL_INTERVENTIONS_COLLECTION, id);
+        await deleteDoc(docRef);
+    } catch (error) {
+        console.error('Error deleting punctual intervention:', error);
+        throw error;
+    }
+};

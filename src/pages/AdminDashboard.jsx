@@ -6,7 +6,7 @@ import Dashboard from '../components/Dashboard';
 import BonoForm from '../components/BonoForm';
 import BonoCard from '../components/BonoCard';
 import ClientHistory from '../components/ClientHistory';
-import { getBonos, addBono, updateBono, deleteBono, checkExpiredBonos, getPunctualInterventions } from '../db';
+import { getBonos, addBono, updateBono, deleteBono, checkExpiredBonos, getPunctualInterventions, updatePunctualIntervention, deletePunctualIntervention } from '../db';
 
 export default function AdminDashboard() {
     const [bonos, setBonos] = useState([]);
@@ -74,7 +74,9 @@ export default function AdminDashboard() {
     };
 
     const handleDeleteBono = async (id) => {
-        if (!confirm('¿Estás seguro de que deseas eliminar este bono?')) return;
+        const bono = bonos.find(b => b.id === id);
+        if (!confirm(`¿Estás seguro de que deseas eliminar el bono de "${bono.clientName}"?`)) return;
+        if (!confirm('ESTA ACCIÓN ES IRREVERSIBLE. Se perderán todos los datos del bono. ¿Confirmar eliminación definitiva?')) return;
 
         try {
             setError(null);
@@ -101,6 +103,33 @@ export default function AdminDashboard() {
     const handleCancelForm = () => {
         setShowForm(false);
         setEditingBono(null);
+    };
+
+    const handleDeletePunctual = async (id) => {
+        if (!confirm('¿Estás seguro de que deseas eliminar esta asistencia puntual?')) return;
+
+        try {
+            setError(null);
+            await deletePunctualIntervention(id);
+            setPunctualInterventions(prev => prev.filter(p => p.id !== id));
+        } catch (err) {
+            console.error('Error deleting punctual:', err);
+            setError('Error al eliminar la asistencia puntual.');
+        }
+    };
+
+    const handleEditPunctualNotes = async (id, currentNotes) => {
+        const newNotes = prompt('Editar observaciones:', currentNotes);
+        if (newNotes === null) return;
+
+        try {
+            setError(null);
+            await updatePunctualIntervention(id, { notes: newNotes });
+            setPunctualInterventions(prev => prev.map(p => p.id === id ? { ...p, notes: newNotes } : p));
+        } catch (err) {
+            console.error('Error updating punctual notes:', err);
+            setError('Error al actualizar las observaciones.');
+        }
     };
 
     const handleLogout = async () => {
@@ -272,12 +301,13 @@ export default function AdminDashboard() {
                                         <th className="px-6 py-3 text-left text-xs font-medium text-orange-800 uppercase tracking-wider">Horas</th>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-orange-800 uppercase tracking-wider">Observaciones</th>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-orange-800 uppercase tracking-wider">Evidencias</th>
+                                        <th className="px-6 py-3 text-right text-xs font-medium text-orange-800 uppercase tracking-wider">Acciones</th>
                                     </tr>
                                 </thead>
                                 <tbody className="bg-white divide-y divide-gray-200">
                                     {punctualInterventions.length === 0 ? (
                                         <tr>
-                                            <td colSpan="5" className="px-6 py-10 text-center text-gray-500 italic">
+                                            <td colSpan="6" className="px-6 py-10 text-center text-gray-500 italic">
                                                 No hay asistencias puntuales registradas.
                                             </td>
                                         </tr>
@@ -306,6 +336,24 @@ export default function AdminDashboard() {
                                                             </a>
                                                         ))}
                                                         {(!item.images || item.images.length === 0) && '-'}
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                                    <div className="flex justify-end gap-3">
+                                                        <button
+                                                            onClick={() => handleEditPunctualNotes(item.id, item.notes)}
+                                                            className="text-orange-600 hover:text-orange-900 bg-orange-50 px-2 py-1 rounded"
+                                                            title="Editar notas"
+                                                        >
+                                                            ✏️
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleDeletePunctual(item.id)}
+                                                            className="text-red-600 hover:text-red-900 bg-red-50 px-2 py-1 rounded"
+                                                            title="Eliminar"
+                                                        >
+                                                            🗑️
+                                                        </button>
                                                     </div>
                                                 </td>
                                             </tr>
