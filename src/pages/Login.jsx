@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { loginUser } from '../auth';
 import { initializeDefaultAdmin } from '../initAdmin';
+import ParticleBackground from '../components/ParticleBackground';
 
 export default function Login() {
     const [email, setEmail] = useState('');
@@ -59,11 +60,12 @@ export default function Login() {
     };
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+        <div className="relative min-h-screen flex items-center justify-center p-4 overflow-hidden bg-slate-50">
+            <ParticleBackground />
             <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="relative z-10 bg-white/80 backdrop-blur-md rounded-2xl shadow-2xl p-8 w-full max-w-md border border-white/20"
             >
                 <div className="text-center mb-8">
                     <h1 className="text-4xl font-bold text-gray-900 mb-2">🎫 Control de Bonos</h1>
