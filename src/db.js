@@ -17,6 +17,7 @@ import { db } from './firebase';
 const BONOS_COLLECTION = 'bonos';
 const USERS_COLLECTION = 'users';
 const INTERVENTIONS_COLLECTION = 'interventions';
+const PUNCTUAL_INTERVENTIONS_COLLECTION = 'punctual_interventions';
 
 // ============ BONOS ============
 
@@ -324,4 +325,48 @@ export const checkExpiredBonos = (bonos) => {
 
         return bono;
     });
+};
+
+// ============ PUNCTUAL INTERVENTIONS (No User/Bono) ============
+
+// Get all punctual interventions
+export const getPunctualInterventions = async () => {
+    try {
+        const q = query(collection(db, PUNCTUAL_INTERVENTIONS_COLLECTION), orderBy('date', 'desc'));
+        const querySnapshot = await getDocs(q);
+        const interventions = [];
+
+        querySnapshot.forEach((doc) => {
+            interventions.push({
+                id: doc.id,
+                ...doc.data(),
+                date: doc.data().date?.toDate().toISOString()
+            });
+        });
+
+        return interventions;
+    } catch (error) {
+        console.error('Error getting punctual interventions:', error);
+        throw error;
+    }
+};
+
+// Add punctual intervention
+export const addPunctualIntervention = async (data) => {
+    try {
+        const newDoc = {
+            ...data,
+            date: Timestamp.fromDate(new Date(data.date)),
+            createdAt: Timestamp.now()
+        };
+
+        const docRef = await addDoc(collection(db, PUNCTUAL_INTERVENTIONS_COLLECTION), newDoc);
+        return {
+            id: docRef.id,
+            ...data
+        };
+    } catch (error) {
+        console.error('Error adding punctual intervention:', error);
+        throw error;
+    }
 };

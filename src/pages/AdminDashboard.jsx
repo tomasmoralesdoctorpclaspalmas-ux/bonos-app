@@ -6,7 +6,7 @@ import Dashboard from '../components/Dashboard';
 import BonoForm from '../components/BonoForm';
 import BonoCard from '../components/BonoCard';
 import ClientHistory from '../components/ClientHistory';
-import { getBonos, addBono, updateBono, deleteBono, checkExpiredBonos } from '../db';
+import { getBonos, addBono, updateBono, deleteBono, checkExpiredBonos, getPunctualInterventions } from '../db';
 
 export default function AdminDashboard() {
     const [bonos, setBonos] = useState([]);
@@ -17,6 +17,7 @@ export default function AdminDashboard() {
     const [error, setError] = useState(null);
     const [showMenu, setShowMenu] = useState(false);
     const [viewHistoryClient, setViewHistoryClient] = useState(null);
+    const [punctualInterventions, setPunctualInterventions] = useState([]);
 
     const { logout, currentUser } = useAuth();
     const navigate = useNavigate();
@@ -29,12 +30,19 @@ export default function AdminDashboard() {
         try {
             setLoading(true);
             setError(null);
-            const data = await getBonos();
-            const updatedData = checkExpiredBonos(data);
-            setBonos(updatedData);
+
+            // Load bonos and punctual interventions in parallel
+            const [bonosData, punctualData] = await Promise.all([
+                getBonos(),
+                getPunctualInterventions()
+            ]);
+
+            const updatedBonos = checkExpiredBonos(bonosData);
+            setBonos(updatedBonos);
+            setPunctualInterventions(punctualData);
         } catch (err) {
-            console.error('Error loading bonos:', err);
-            setError('Error al cargar los bonos. Verifica tu configuración de Firebase.');
+            console.error('Error loading data:', err);
+            setError('Error al cargar la información. Verifica tu configuración de Firebase.');
         } finally {
             setLoading(false);
         }
@@ -168,9 +176,15 @@ export default function AdminDashboard() {
                                             </button>
                                             <button
                                                 onClick={() => navigate('/admin/register-intervention')}
-                                                className="w-full text-left px-4 py-3 hover:bg-blue-50 text-gray-700 flex items-center gap-2 transition-colors"
+                                                className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-700 transition-colors flex items-center gap-2 border-b border-gray-50"
                                             >
-                                                <span>🛠️</span> Registrar Asistencia
+                                                📋 Registrar Intervención
+                                            </button>
+                                            <button
+                                                onClick={() => navigate('/admin/register-punctual')}
+                                                className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-orange-50 hover:text-orange-700 transition-colors flex items-center gap-2 border-b border-gray-50"
+                                            >
+                                                ⚡ Asistencia Puntual
                                             </button>
                                         </motion.div>
                                     )}
@@ -230,13 +244,14 @@ export default function AdminDashboard() {
                         { value: 'all', label: 'Todos', icon: '📊' },
                         { value: 'active', label: 'Activos', icon: '✅' },
                         { value: 'depleted', label: 'Agotados', icon: '⚠️' },
-                        { value: 'expired', label: 'Expirados', icon: '⏰' }
+                        { value: 'expired', label: 'Expirados', icon: '⏰' },
+                        { value: 'punctual', label: 'Puntuales', icon: '⚡' }
                     ].map(({ value, label, icon }) => (
                         <button
                             key={value}
                             onClick={() => setFilter(value)}
                             className={`px-4 py-2 rounded-lg font-semibold transition-all ${filter === value
-                                ? 'bg-blue-600 text-white shadow-lg'
+                                ? (value === 'punctual' ? 'bg-orange-600 text-white shadow-lg' : 'bg-blue-600 text-white shadow-lg')
                                 : 'bg-white text-gray-700 hover:bg-gray-100'
                                 }`}
                         >
@@ -245,8 +260,62 @@ export default function AdminDashboard() {
                     ))}
                 </div>
 
-                {/* Bonos List */}
-                {filteredBonos.length === 0 ? (
+                {/* Bonos List or Punctual History */}
+                {filter === 'punctual' ? (
+                    <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
+                        <div className="overflow-x-auto">
+                            <table className="min-w-full divide-y divide-gray-200">
+                                <thead className="bg-orange-50">
+                                    <tr>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-orange-800 uppercase tracking-wider">Fecha</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-orange-800 uppercase tracking-wider">Cliente/Firma</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-orange-800 uppercase tracking-wider">Horas</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-orange-800 uppercase tracking-wider">Observaciones</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-orange-800 uppercase tracking-wider">Evidencias</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="bg-white divide-y divide-gray-200">
+                                    {punctualInterventions.length === 0 ? (
+                                        <tr>
+                                            <td colSpan="5" className="px-6 py-10 text-center text-gray-500 italic">
+                                                No hay asistencias puntuales registradas.
+                                            </td>
+                                        </tr>
+                                    ) : (
+                                        punctualInterventions.map((item) => (
+                                            <tr key={item.id} className="hover:bg-gray-50 transition-colors">
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">
+                                                    {new Date(item.date).toLocaleDateString()}
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                                                    {item.clientName}
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-center">
+                                                    <span className="bg-orange-100 text-orange-800 px-2 py-1 rounded text-xs font-bold">
+                                                        {item.hours}h
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4 text-sm text-gray-600 max-w-xs truncate">
+                                                    {item.notes || '-'}
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                    <div className="flex -space-x-2">
+                                                        {item.images?.map((img, i) => (
+                                                            <a key={i} href={img} target="_blank" rel="noreferrer" className="block transform hover:scale-110 transition-transform">
+                                                                <img src={img} alt="evidencia" className="h-8 w-8 rounded-full border-2 border-white object-cover shadow-sm" />
+                                                            </a>
+                                                        ))}
+                                                        {(!item.images || item.images.length === 0) && '-'}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                ) : filteredBonos.length === 0 ? (
                     <motion.div
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}

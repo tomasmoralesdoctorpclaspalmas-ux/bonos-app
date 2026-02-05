@@ -256,32 +256,35 @@ export default function UserManagement() {
                                     )}
                                 </div>
 
-                                {!editingUser ? (
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                                            Contraseña *
-                                        </label>
-                                        <input
-                                            type="password"
-                                            value={formData.password}
-                                            onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                                            required
-                                            minLength={6}
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                                            placeholder="Mínimo 6 caracteres"
-                                        />
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        {editingUser ? 'Nueva Contraseña (vía Email)' : 'Contraseña *'}
+                                    </label>
+                                    <div className="flex gap-2">
+                                        {editingUser ? (
+                                            <button
+                                                type="button"
+                                                onClick={() => handleResetPassword(editingUser.email)}
+                                                className="w-full py-2 px-4 bg-orange-50 border border-orange-200 text-orange-700 rounded-lg hover:bg-orange-100 transition-colors text-sm font-semibold flex items-center justify-center gap-2"
+                                            >
+                                                📧 Enviar enlace de cambio de clave
+                                            </button>
+                                        ) : (
+                                            <input
+                                                type="password"
+                                                value={formData.password}
+                                                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                                                required={!editingUser}
+                                                minLength={6}
+                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                                placeholder="Mínimo 6 caracteres"
+                                            />
+                                        )}
                                     </div>
-                                ) : (
-                                    <div className="flex flex-col justify-end">
-                                        <button
-                                            type="button"
-                                            onClick={() => handleResetPassword(editingUser.email)}
-                                            className="w-full py-2 px-4 border border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50 transition-colors text-sm font-semibold"
-                                        >
-                                            📧 Enviar Restablecimiento de Contraseña
-                                        </button>
-                                    </div>
-                                )}
+                                    {editingUser && (
+                                        <p className="text-xs text-gray-500 mt-1">Por seguridad, el administrador envía un enlace para que el usuario elija su clave.</p>
+                                    )}
+                                </div>
 
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">
