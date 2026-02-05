@@ -208,6 +208,7 @@ export default function ClientDashboard() {
                                 <thead className="bg-gray-50">
                                     <tr>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fecha</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Horario</th>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Horas</th>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Notas</th>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Evidencias</th>
@@ -222,6 +223,9 @@ export default function ClientDashboard() {
                                                     month: 'long',
                                                     year: 'numeric'
                                                 })}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                                                {intervention.startTime && intervention.endTime ? `${intervention.startTime} - ${intervention.endTime}` : (intervention.startTime || intervention.endTime || '-')}
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-orange-600">
                                                 -{intervention.hoursUsed}h

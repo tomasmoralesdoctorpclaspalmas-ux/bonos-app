@@ -28,12 +28,12 @@ export default function ClientHistory({ client, onClose }) {
     };
 
     const formatDate = (dateString) => {
-        return new Date(dateString).toLocaleDateString('es-ES', {
+        const date = new Date(dateString);
+        if (isNaN(date.getTime())) return dateString; // For cases where it's just YYYY-MM-DD
+        return date.toLocaleDateString('es-ES', {
             day: 'numeric',
             month: 'long',
-            year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
+            year: 'numeric'
         });
     };
 
@@ -125,6 +125,11 @@ export default function ClientHistory({ client, onClose }) {
                                             <span className="bg-blue-100 text-blue-800 text-xs font-semibold px-2.5 py-0.5 rounded">
                                                 🗓️ {formatDate(intervention.date)}
                                             </span>
+                                            {(intervention.startTime || intervention.endTime) && (
+                                                <span className="bg-purple-100 text-purple-800 text-xs font-semibold px-2.5 py-0.5 rounded">
+                                                    🕒 {intervention.startTime && intervention.endTime ? `${intervention.startTime} - ${intervention.endTime}` : (intervention.startTime || intervention.endTime)}
+                                                </span>
+                                            )}
                                             <span className="bg-green-100 text-green-800 text-xs font-semibold px-2.5 py-0.5 rounded">
                                                 ⏱️ -{intervention.hoursUsed}h
                                             </span>

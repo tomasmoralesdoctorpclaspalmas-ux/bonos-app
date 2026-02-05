@@ -12,6 +12,9 @@ export default function RegisterIntervention() {
     const [selectedClient, setSelectedClient] = useState('');
     const [selectedBono, setSelectedBono] = useState('');
     const [hours, setHours] = useState('');
+    const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
+    const [startTime, setStartTime] = useState('');
+    const [endTime, setEndTime] = useState('');
     const [notes, setNotes] = useState('');
     const [images, setImages] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -106,7 +109,9 @@ export default function RegisterIntervention() {
                 clientId: selectedClient,
                 bonoId: selectedBono,
                 hoursUsed: parseFloat(hours),
-                date: new Date().toISOString(),
+                date: startDate,
+                startTime,
+                endTime,
                 notes,
                 images: imageUrls,
                 clientName: clients.find(c => c.uid === selectedClient)?.name
@@ -185,20 +190,61 @@ export default function RegisterIntervention() {
                             </div>
                         </div>
 
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                                Horas Dedicadas *
-                            </label>
-                            <input
-                                type="number"
-                                value={hours}
-                                onChange={(e) => setHours(e.target.value)}
-                                min="0.5"
-                                step="0.5"
-                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                placeholder="Ej: 1.5"
-                                required
-                            />
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Fecha de la Asistencia *
+                                </label>
+                                <input
+                                    type="date"
+                                    value={startDate}
+                                    onChange={(e) => setStartDate(e.target.value)}
+                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                                    required
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Horas Dedicadas *
+                                </label>
+                                <input
+                                    type="number"
+                                    value={hours}
+                                    onChange={(e) => setHours(e.target.value)}
+                                    min="0.5"
+                                    step="0.5"
+                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                                    placeholder="Ej: 1.5"
+                                    required
+                                />
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Hora Inicio (opcional)
+                                </label>
+                                <input
+                                    type="time"
+                                    value={startTime}
+                                    onChange={(e) => setStartTime(e.target.value)}
+                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Hora Fin (opcional)
+                                </label>
+                                <input
+                                    type="time"
+                                    value={endTime}
+                                    onChange={(e) => setEndTime(e.target.value)}
+                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                                />
+                            </div>
                         </div>
 
                         <div>
