@@ -9,6 +9,9 @@ export default function RegisterPunctual() {
     const navigate = useNavigate();
     const [clientName, setClientName] = useState('');
     const [hours, setHours] = useState('');
+    const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
+    const [startTime, setStartTime] = useState('');
+    const [endTime, setEndTime] = useState('');
     const [notes, setNotes] = useState('');
     const [images, setImages] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -58,7 +61,9 @@ export default function RegisterPunctual() {
             await addPunctualIntervention({
                 clientName,
                 hours: parseFloat(hours),
-                date: new Date().toISOString(),
+                date: startDate, // Now using the selected start date
+                startTime,
+                endTime,
                 notes,
                 images: imageUrls
             });
@@ -109,6 +114,21 @@ export default function RegisterPunctual() {
 
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Fecha de la Asistencia *
+                                </label>
+                                <input
+                                    type="date"
+                                    value={startDate}
+                                    onChange={(e) => setStartDate(e.target.value)}
+                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none"
+                                    required
+                                />
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
                                     Horas Dedicadas *
                                 </label>
                                 <input
@@ -120,6 +140,30 @@ export default function RegisterPunctual() {
                                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none"
                                     placeholder="Ej: 1"
                                     required
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Hora Inicio (opcional)
+                                </label>
+                                <input
+                                    type="time"
+                                    value={startTime}
+                                    onChange={(e) => setStartTime(e.target.value)}
+                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Hora Fin (opcional)
+                                </label>
+                                <input
+                                    type="time"
+                                    value={endTime}
+                                    onChange={(e) => setEndTime(e.target.value)}
+                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none"
                                 />
                             </div>
                         </div>

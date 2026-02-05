@@ -298,6 +298,7 @@ export default function AdminDashboard() {
                                     <tr>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-orange-800 uppercase tracking-wider">Fecha</th>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-orange-800 uppercase tracking-wider">Cliente/Firma</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-orange-800 uppercase tracking-wider">Horario</th>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-orange-800 uppercase tracking-wider">Horas</th>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-orange-800 uppercase tracking-wider">Observaciones</th>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-orange-800 uppercase tracking-wider">Evidencias</th>
@@ -307,7 +308,7 @@ export default function AdminDashboard() {
                                 <tbody className="bg-white divide-y divide-gray-200">
                                     {punctualInterventions.length === 0 ? (
                                         <tr>
-                                            <td colSpan="6" className="px-6 py-10 text-center text-gray-500 italic">
+                                            <td colSpan="7" className="px-6 py-10 text-center text-gray-500 italic">
                                                 No hay asistencias puntuales registradas.
                                             </td>
                                         </tr>
@@ -319,6 +320,9 @@ export default function AdminDashboard() {
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
                                                     {item.clientName}
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                                                    {item.startTime && item.endTime ? `${item.startTime} - ${item.endTime}` : (item.startTime || item.endTime || '-')}
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-center">
                                                     <span className="bg-orange-100 text-orange-800 px-2 py-1 rounded text-xs font-bold">
