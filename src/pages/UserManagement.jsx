@@ -2,9 +2,8 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { getUsers, deleteUser } from '../db';
-import { createUserAccount } from '../auth';
-import { addUserData } from '../db';
+import { getUsers, deleteUser, updateUser } from '../db';
+import { createUserAccount, sendPasswordReset } from '../auth';
 
 export default function UserManagement() {
     const [users, setUsers] = useState([]);
@@ -18,7 +17,9 @@ export default function UserManagement() {
         phone: '',
         companyName: ''
     });
+    const [editingUser, setEditingUser] = useState(null);
     const [error, setError] = useState('');
+    const [success, setSuccess] = useState('');
 
     const { logout } = useAuth();
     const navigate = useNavigate();
@@ -43,38 +44,82 @@ export default function UserManagement() {
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
+        setSuccess('');
 
         try {
-            // Create user in Firebase Auth
-            const uid = await createUserAccount(formData.email, formData.password, {
-                name: formData.name,
-                role: formData.role,
-                phone: formData.phone,
-                companyName: formData.companyName
-            });
+            if (editingUser) {
+                // Update existing user in Firestore
+                await updateUser(editingUser.uid, {
+                    name: formData.name,
+                    role: formData.role,
+                    phone: formData.phone,
+                    companyName: formData.companyName
+                });
+                setSuccess('Usuario actualizado correctamente');
+            } else {
+                // Create user in Firebase Auth
+                await createUserAccount(formData.email, formData.password, {
+                    name: formData.name,
+                    role: formData.role,
+                    phone: formData.phone,
+                    companyName: formData.companyName
+                });
+                setSuccess('Usuario creado correctamente');
+            }
 
             // Reload users
             await loadUsers();
 
             // Reset form
-            setFormData({
-                email: '',
-                password: '',
-                name: '',
-                role: 'client',
-                phone: '',
-                companyName: ''
-            });
-            setShowForm(false);
+            resetForm();
         } catch (err) {
-            console.error('Error creating user:', err);
+            console.error('Error in user management:', err);
             if (err.code === 'auth/email-already-in-use') {
                 setError('Este email ya está en uso');
             } else if (err.code === 'auth/weak-password') {
                 setError('La contraseña debe tener al menos 6 caracteres');
             } else {
-                setError('Error al crear usuario. Intenta nuevamente.');
+                setError('Error al procesar la solicitud. Intenta nuevamente.');
             }
+        }
+    };
+
+    const resetForm = () => {
+        setFormData({
+            email: '',
+            password: '',
+            name: '',
+            role: 'client',
+            phone: '',
+            companyName: ''
+        });
+        setEditingUser(null);
+        setShowForm(false);
+    };
+
+    const handleEdit = (user) => {
+        setEditingUser(user);
+        setFormData({
+            email: user.email,
+            password: '', // Password cannot be edited directly
+            name: user.name,
+            role: user.role,
+            phone: user.phone || '',
+            companyName: user.companyName || ''
+        });
+        setShowForm(true);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    const handleResetPassword = async (email) => {
+        if (!confirm(`¿Enviar email de restablecimiento de contraseña a ${email}?`)) return;
+
+        try {
+            await sendPasswordReset(email);
+            setSuccess(`Email de restablecimiento enviado a ${email}`);
+        } catch (err) {
+            console.error('Error sending reset email:', err);
+            setError('Error al enviar el email de restablecimiento');
         }
     };
 
@@ -124,7 +169,10 @@ export default function UserManagement() {
                                 🎫 Bonos
                             </button>
                             <button
-                                onClick={() => setShowForm(!showForm)}
+                                onClick={() => {
+                                    if (showForm) resetForm();
+                                    else setShowForm(true);
+                                }}
                                 className="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg shadow-lg transition-all"
                             >
                                 {showForm ? '❌ Cancelar' : '➕ Nuevo Usuario'}
@@ -141,6 +189,17 @@ export default function UserManagement() {
             </header>
 
             <main className="max-w-7xl mx-auto px-4 py-8">
+                {/* Success Message */}
+                {success && (
+                    <motion.div
+                        initial={{ opacity: 0, y: -20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded-lg mb-6"
+                    >
+                        <p className="font-semibold">✅ {success}</p>
+                    </motion.div>
+                )}
+
                 {/* Error Message */}
                 {error && (
                     <motion.div
@@ -159,7 +218,9 @@ export default function UserManagement() {
                         animate={{ opacity: 1, scale: 1 }}
                         className="bg-white rounded-lg shadow-lg p-6 mb-6"
                     >
-                        <h2 className="text-2xl font-bold mb-4 text-gray-800">Crear Nuevo Usuario</h2>
+                        <h2 className="text-2xl font-bold mb-4 text-gray-800">
+                            {editingUser ? `Editando: ${editingUser.name}` : 'Crear Nuevo Usuario'}
+                        </h2>
 
                         <form onSubmit={handleSubmit} className="space-y-4">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -186,25 +247,41 @@ export default function UserManagement() {
                                         value={formData.email}
                                         onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                                         required
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                        disabled={!!editingUser}
+                                        className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 ${editingUser ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                                         placeholder="usuario@email.com"
                                     />
+                                    {editingUser && (
+                                        <p className="text-xs text-gray-500 mt-1">El email no se puede cambiar directamente.</p>
+                                    )}
                                 </div>
 
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        Contraseña *
-                                    </label>
-                                    <input
-                                        type="password"
-                                        value={formData.password}
-                                        onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                                        required
-                                        minLength={6}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                                        placeholder="Mínimo 6 caracteres"
-                                    />
-                                </div>
+                                {!editingUser ? (
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                                            Contraseña *
+                                        </label>
+                                        <input
+                                            type="password"
+                                            value={formData.password}
+                                            onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                                            required
+                                            minLength={6}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                            placeholder="Mínimo 6 caracteres"
+                                        />
+                                    </div>
+                                ) : (
+                                    <div className="flex flex-col justify-end">
+                                        <button
+                                            type="button"
+                                            onClick={() => handleResetPassword(editingUser.email)}
+                                            className="w-full py-2 px-4 border border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50 transition-colors text-sm font-semibold"
+                                        >
+                                            📧 Enviar Restablecimiento de Contraseña
+                                        </button>
+                                    </div>
+                                )}
 
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -249,9 +326,9 @@ export default function UserManagement() {
 
                             <button
                                 type="submit"
-                                className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg transition-colors"
+                                className={`w-full font-bold py-3 px-4 rounded-lg transition-colors ${editingUser ? 'bg-blue-600 hover:bg-blue-700' : 'bg-green-600 hover:bg-green-700'} text-white`}
                             >
-                                Crear Usuario
+                                {editingUser ? 'Guardar Cambios' : 'Crear Usuario'}
                             </button>
                         </form>
                     </motion.div>
@@ -293,8 +370,8 @@ export default function UserManagement() {
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap">
                                         <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${user.role === 'admin'
-                                                ? 'bg-purple-100 text-purple-800'
-                                                : 'bg-green-100 text-green-800'
+                                            ? 'bg-purple-100 text-purple-800'
+                                            : 'bg-green-100 text-green-800'
                                             }`}>
                                             {user.role === 'admin' ? 'Admin' : 'Cliente'}
                                         </span>
@@ -305,7 +382,13 @@ export default function UserManagement() {
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                         {user.companyName || '-'}
                                     </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium flex gap-3">
+                                        <button
+                                            onClick={() => handleEdit(user)}
+                                            className="text-blue-600 hover:text-blue-900"
+                                        >
+                                            ✏️ Editar
+                                        </button>
                                         <button
                                             onClick={() => handleDelete(user.uid)}
                                             className="text-red-600 hover:text-red-900"

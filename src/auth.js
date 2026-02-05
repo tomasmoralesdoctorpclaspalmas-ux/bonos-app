@@ -2,7 +2,8 @@ import {
     signInWithEmailAndPassword,
     signOut,
     onAuthStateChanged,
-    createUserWithEmailAndPassword
+    createUserWithEmailAndPassword,
+    sendPasswordResetEmail
 } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
@@ -113,4 +114,13 @@ export const onAuthStateChange = (callback) => {
             callback(null);
         }
     });
+};
+// Send password reset email
+export const sendPasswordReset = async (email) => {
+    try {
+        await sendPasswordResetEmail(auth, email);
+    } catch (error) {
+        console.error('Error sending password reset:', error);
+        throw error;
+    }
 };
