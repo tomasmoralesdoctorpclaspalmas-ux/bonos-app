@@ -1,12 +1,15 @@
-import { useState } from 'react';
-import { motion } from 'framer-motion';
+import { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { addPunctualIntervention } from '../db';
+import { addPunctualIntervention, getEmpresas, getUsers } from '../db';
 import { storage } from '../firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import EmpresaForm from '../components/EmpresaForm';
+import QuickUserForm from '../components/QuickUserForm';
 
 export default function RegisterPunctual() {
     const navigate = useNavigate();
+    const [clientId, setClientId] = useState('');
     const [clientName, setClientName] = useState('');
     const [hours, setHours] = useState('');
     const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
@@ -16,6 +19,28 @@ export default function RegisterPunctual() {
     const [images, setImages] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
+
+    const [empresas, setEmpresas] = useState([]);
+    const [users, setUsers] = useState([]);
+    const [showEmpresaForm, setShowEmpresaForm] = useState(false);
+    const [showUserForm, setShowUserForm] = useState(false);
+
+    const loadData = async () => {
+        try {
+            const [allEmpresas, allUsers] = await Promise.all([
+                getEmpresas(),
+                getUsers()
+            ]);
+            setEmpresas(allEmpresas);
+            setUsers(allUsers.filter(u => u.role !== 'admin'));
+        } catch (err) {
+            console.error('Error loading data:', err);
+        }
+    };
+
+    useEffect(() => {
+        loadData();
+    }, []);
 
     const handleImageChange = (e) => {
         if (e.target.files) {
@@ -59,6 +84,7 @@ export default function RegisterPunctual() {
 
             // Create punctual intervention
             await addPunctualIntervention({
+                clientId,
                 clientName,
                 hours: parseFloat(hours),
                 date: startDate, // Now using the selected start date
@@ -102,14 +128,61 @@ export default function RegisterPunctual() {
                                 <label className="block text-sm font-medium text-gray-700 mb-1">
                                     Nombre del Cliente / Firma *
                                 </label>
-                                <input
-                                    type="text"
-                                    value={clientName}
-                                    onChange={(e) => setClientName(e.target.value)}
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none"
-                                    placeholder="Ej: Empresa Externa S.A."
+                                <select
+                                    value={clientId}
+                                    onChange={(e) => {
+                                        const selectedId = e.target.value;
+                                        setClientId(selectedId);
+                                        
+                                        const user = users.find(u => u.uid === selectedId);
+                                        if (user) {
+                                            setClientName(user.name);
+                                        } else {
+                                            const empresa = empresas.find(emp => emp.id === selectedId);
+                                            if (empresa) {
+                                                setClientName(empresa.name);
+                                            } else {
+                                                setClientName('');
+                                            }
+                                        }
+                                    }}
+                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none mb-2"
                                     required
-                                />
+                                >
+                                    <option value="">Seleccionar empresa o usuario...</option>
+                                    {empresas.length > 0 && (
+                                        <optgroup label="🏢 Empresas">
+                                            {empresas.map(emp => (
+                                                <option key={emp.id} value={emp.id}>{emp.name}</option>
+                                            ))}
+                                        </optgroup>
+                                    )}
+                                    {users.length > 0 && (
+                                        <optgroup label="👤 Usuarios Particulares">
+                                            {users.map(u => (
+                                                <option key={u.uid} value={u.uid}>{u.name}</option>
+                                            ))}
+                                        </optgroup>
+                                    )}
+                                </select>
+                                <div className="flex gap-2 text-sm pt-1">
+                                    <span className="text-gray-500">¿No existe?</span>
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowEmpresaForm(true)}
+                                        className="text-green-600 hover:text-green-800 font-semibold flex items-center gap-1"
+                                    >
+                                        🏢 Registrar Empresa
+                                    </button>
+                                    <span className="text-gray-300">|</span>
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowUserForm(true)}
+                                        className="text-purple-600 hover:text-purple-800 font-semibold flex items-center gap-1"
+                                    >
+                                        👤 Registrar Usuario
+                                    </button>
+                                </div>
                             </div>
 
                             <div>
@@ -238,6 +311,31 @@ export default function RegisterPunctual() {
                     </form>
                 </motion.div>
             </div>
+
+            {/* Modals */}
+            <AnimatePresence>
+                {showEmpresaForm && (
+                    <EmpresaForm
+                        onCancel={() => setShowEmpresaForm(false)}
+                        onSuccess={async (nuevaEmpresa) => {
+                            await loadData();
+                            setClientId(nuevaEmpresa.id);
+                            setClientName(nuevaEmpresa.name);
+                            setShowEmpresaForm(false);
+                        }}
+                    />
+                )}
+                {showUserForm && (
+                    <QuickUserForm
+                        onCancel={() => setShowUserForm(false)}
+                        onSuccess={async () => {
+                            await loadData();
+                            setShowUserForm(false);
+                            alert('Usuario registrado con éxito. Ahora puedes seleccionarlo en la lista.');
+                        }}
+                    />
+                )}
+            </AnimatePresence>
         </div>
     );
 }

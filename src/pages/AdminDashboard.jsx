@@ -6,13 +6,17 @@ import Dashboard from '../components/Dashboard';
 import BonoForm from '../components/BonoForm';
 import BonoCard from '../components/BonoCard';
 import ClientHistory from '../components/ClientHistory';
+import EmpresaForm from '../components/EmpresaForm';
+import QuickUserForm from '../components/QuickUserForm';
 import { getBonos, addBono, updateBono, deleteBono, checkExpiredBonos, getPunctualInterventions, updatePunctualIntervention, deletePunctualIntervention } from '../db';
 
 export default function AdminDashboard() {
     const [bonos, setBonos] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [showForm, setShowForm] = useState(false);
-    const [editingBono, setEditingBono] = useState(null);
+    const [showBonoForm, setShowBonoForm] = useState(false);
+    const [showEmpresaForm, setShowEmpresaForm] = useState(false);
+    const [showClientForm, setShowClientForm] = useState(false);
+    const [selectedBono, setSelectedBono] = useState(null);
     const [filter, setFilter] = useState('all');
     const [error, setError] = useState(null);
     const [showMenu, setShowMenu] = useState(false);
@@ -53,7 +57,7 @@ export default function AdminDashboard() {
             setError(null);
             const newBono = await addBono(bonoData);
             setBonos(prev => [newBono, ...prev]);
-            setShowForm(false);
+            setShowBonoForm(false);
         } catch (err) {
             console.error('Error adding bono:', err);
             setError('Error al crear el bono. Intenta nuevamente.');
@@ -63,10 +67,10 @@ export default function AdminDashboard() {
     const handleUpdateBono = async (bonoData) => {
         try {
             setError(null);
-            const updated = await updateBono(editingBono.id, bonoData);
-            setBonos(prev => prev.map(b => b.id === editingBono.id ? updated : b));
-            setEditingBono(null);
-            setShowForm(false);
+            const updated = await updateBono(selectedBono.id, bonoData);
+            setBonos(prev => prev.map(b => b.id === selectedBono.id ? updated : b));
+            setSelectedBono(null);
+            setShowBonoForm(false);
         } catch (err) {
             console.error('Error updating bono:', err);
             setError('Error al actualizar el bono. Intenta nuevamente.');
@@ -89,8 +93,8 @@ export default function AdminDashboard() {
     };
 
     const handleEdit = (bono) => {
-        setEditingBono(bono);
-        setShowForm(true);
+        setSelectedBono(bono);
+        setShowBonoForm(true);
     };
 
     const handleViewHistory = (bono) => {
@@ -101,8 +105,8 @@ export default function AdminDashboard() {
     };
 
     const handleCancelForm = () => {
-        setShowForm(false);
-        setEditingBono(null);
+        setShowBonoForm(false);
+        setSelectedBono(null);
     };
 
     const handleDeletePunctual = async (id) => {
@@ -196,7 +200,7 @@ export default function AdminDashboard() {
                                         >
                                             <button
                                                 onClick={() => {
-                                                    setShowForm(true);
+                                                    setShowBonoForm(true);
                                                     setShowMenu(false);
                                                 }}
                                                 className="w-full text-left px-4 py-3 hover:bg-blue-50 text-gray-700 flex items-center gap-2 transition-colors border-b border-gray-100"
@@ -215,6 +219,23 @@ export default function AdminDashboard() {
                                             >
                                                 ⚡ Asistencia Puntual
                                             </button>
+                                            <div className="border-t border-gray-200 my-1"></div>
+                                            <button
+                                                onClick={() => {
+                                                    setShowEmpresaForm(true);
+                                                    setShowMenu(false);
+                                                }}
+                                                className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                                            >
+                                                🏢 Registrar Empresa
+                                            </button>
+                                            <button
+                                                onClick={() => { setShowClientForm(true); setShowMenu(false); }}
+                                                className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                                            >
+                                                👤 Añadir Cliente
+                                            </button>
+                                            <div className="border-t border-gray-100 my-1"></div>
                                         </motion.div>
                                     )}
                                 </AnimatePresence>
@@ -248,16 +269,37 @@ export default function AdminDashboard() {
 
                 {/* Form */}
                 <AnimatePresence>
-                    {showForm && (
+                    {showBonoForm && (
                         <BonoForm
-                            bono={editingBono}
-                            onSubmit={editingBono ? handleUpdateBono : handleAddBono}
+                            bono={selectedBono}
+                            onSubmit={selectedBono ? handleUpdateBono : handleAddBono}
                             onCancel={handleCancelForm}
                         />
                     )}
                 </AnimatePresence>
 
-                {/* Client History Modal */}
+                {/* Empresa Form Modal */}
+                <AnimatePresence>
+                {showEmpresaForm && (
+                    <EmpresaForm
+                        onCancel={() => setShowEmpresaForm(false)}
+                        onSuccess={() => {
+                            setShowEmpresaForm(false);
+                            alert('Empresa registrada con éxito.');
+                        }}
+                    />
+                )}
+                {showClientForm && (
+                    <QuickUserForm
+                        onCancel={() => setShowClientForm(false)}
+                        onSuccess={() => {
+                            setShowClientForm(false);
+                            alert('Cliente registrado con éxito.');
+                        }}
+                    />
+                )}
+            </AnimatePresence>
+        {/* Client History Modal */}
                 <AnimatePresence>
                     {viewHistoryClient && (
                         <ClientHistory

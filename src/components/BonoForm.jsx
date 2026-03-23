@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { getUsers } from '../db';
+import { getUsers, getEmpresas } from '../db';
 import { motion } from 'framer-motion';
 
 export default function BonoForm({ bono, onSubmit, onCancel }) {
     const [users, setUsers] = useState([]);
+    const [empresas, setEmpresas] = useState([]);
     const [formData, setFormData] = useState({
         clientId: '',
         clientName: '',
@@ -19,18 +20,22 @@ export default function BonoForm({ bono, onSubmit, onCancel }) {
     const [errors, setErrors] = useState({});
 
     useEffect(() => {
-        const fetchUsers = async () => {
+        const fetchData = async () => {
             try {
-                const allUsers = await getUsers();
+                const [allUsers, allEmpresas] = await Promise.all([
+                    getUsers(),
+                    getEmpresas()
+                ]);
                 // Filter out admins
                 const clients = allUsers.filter(user => user.role !== 'admin');
                 setUsers(clients);
+                setEmpresas(allEmpresas);
             } catch (error) {
-                console.error("Error fetching users:", error);
+                console.error("Error fetching data:", error);
             }
         };
 
-        fetchUsers();
+        fetchData();
     }, []);
 
     useEffect(() => {
@@ -126,11 +131,23 @@ export default function BonoForm({ bono, onSubmit, onCancel }) {
                             name="clientId"
                             value={formData.clientId}
                             onChange={(e) => {
-                                const selectedUser = users.find(u => u.uid === e.target.value);
+                                const selectedId = e.target.value;
+                                let selectedName = '';
+                                const selectedUser = users.find(u => u.uid === selectedId);
+                                
+                                if (selectedUser) {
+                                    selectedName = selectedUser.name;
+                                } else {
+                                    const selectedEmpresa = empresas.find(emp => emp.id === selectedId);
+                                    if (selectedEmpresa) {
+                                        selectedName = selectedEmpresa.name;
+                                    }
+                                }
+                                
                                 setFormData(prev => ({
                                     ...prev,
-                                    clientId: e.target.value,
-                                    clientName: selectedUser ? selectedUser.name : ''
+                                    clientId: selectedId,
+                                    clientName: selectedName
                                 }));
                                 if (errors.clientName) {
                                     setErrors(prev => ({ ...prev, clientName: '' }));
@@ -139,12 +156,25 @@ export default function BonoForm({ bono, onSubmit, onCancel }) {
                             className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${errors.clientName ? 'border-red-500' : 'border-gray-300'
                                 }`}
                         >
-                            <option value="">Seleccionar cliente...</option>
-                            {users.map(user => (
-                                <option key={user.uid} value={user.uid}>
-                                    {user.name} ({user.email})
-                                </option>
-                            ))}
+                            <option value="">Seleccionar cliente/empresa...</option>
+                            {empresas.length > 0 && (
+                                <optgroup label="🏢 Empresas">
+                                    {empresas.map(emp => (
+                                        <option key={emp.id} value={emp.id}>
+                                            {emp.name}
+                                        </option>
+                                    ))}
+                                </optgroup>
+                            )}
+                            {users.length > 0 && (
+                                <optgroup label="👤 Clientes Particulares">
+                                    {users.map(user => (
+                                        <option key={user.uid} value={user.uid}>
+                                            {user.name} ({user.email})
+                                        </option>
+                                    ))}
+                                </optgroup>
+                            )}
                         </select>
                         {errors.clientName && (
                             <p className="text-red-500 text-xs mt-1">{errors.clientName}</p>

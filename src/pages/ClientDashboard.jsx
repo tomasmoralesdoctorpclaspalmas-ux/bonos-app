@@ -2,11 +2,12 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { getBonosByClient, getInterventionsByClient } from '../db';
+import { getBonosByClient, getInterventionsByClient, getPunctualInterventionsByClient } from '../db';
 
 export default function ClientDashboard() {
     const [bonos, setBonos] = useState([]);
     const [interventions, setInterventions] = useState([]);
+    const [punctualInterventions, setPunctualInterventions] = useState([]);
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState('bonos');
 
@@ -22,12 +23,16 @@ export default function ClientDashboard() {
     const loadData = async () => {
         try {
             setLoading(true);
-            const [bonosData, interventionsData] = await Promise.all([
-                getBonosByClient(currentUser.uid),
-                getInterventionsByClient(currentUser.uid)
+            const clientId = currentUser.empresaId || currentUser.uid;
+            
+            const [bonosData, interventionsData, punctualInterventionsData] = await Promise.all([
+                getBonosByClient(clientId),
+                getInterventionsByClient(clientId),
+                getPunctualInterventionsByClient(clientId)
             ]);
             setBonos(bonosData);
             setInterventions(interventionsData);
+            setPunctualInterventions(punctualInterventionsData);
         } catch (err) {
             console.error('Error loading data:', err);
         } finally {
@@ -144,12 +149,21 @@ export default function ClientDashboard() {
                             : 'bg-white text-gray-700 hover:bg-gray-100'
                             }`}
                     >
-                        🔧 Historial de Intervenciones
+                        🔧 Historial Bonos
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('punctual')}
+                        className={`px-6 py-3 rounded-lg font-semibold transition-all ${activeTab === 'punctual'
+                            ? 'bg-blue-600 text-white shadow-lg'
+                            : 'bg-white text-gray-700 hover:bg-gray-100'
+                            }`}
+                    >
+                        ⚡ Asistencias Puntuales
                     </button>
                 </div>
 
                 {/* Content */}
-                {activeTab === 'bonos' ? (
+                {activeTab === 'bonos' && (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {bonos.length === 0 ? (
                             <div className="col-span-full text-center py-12 bg-white rounded-lg shadow">
@@ -196,7 +210,9 @@ export default function ClientDashboard() {
                             ))
                         )}
                     </div>
-                ) : (
+                )}
+                
+                {activeTab === 'interventions' && (
                     <div className="bg-white rounded-lg shadow-lg overflow-hidden">
                         {interventions.length === 0 ? (
                             <div className="text-center py-12">
@@ -229,6 +245,68 @@ export default function ClientDashboard() {
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-orange-600">
                                                 -{intervention.hoursUsed}h
+                                            </td>
+                                            <td className="px-6 py-4 text-sm text-gray-500">
+                                                <div className="max-w-xs overflow-hidden text-ellipsis">
+                                                    {intervention.notes || '-'}
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4 text-sm text-gray-500">
+                                                {intervention.images && intervention.images.length > 0 ? (
+                                                    <div className="flex gap-1 overflow-x-auto max-w-[150px] pb-1">
+                                                        {intervention.images.map((img, idx) => (
+                                                            <img
+                                                                key={idx}
+                                                                src={img}
+                                                                alt="Evidencia"
+                                                                className="h-10 w-10 object-cover rounded cursor-pointer hover:opacity-80"
+                                                                onClick={() => window.open(img, '_blank')}
+                                                            />
+                                                        ))}
+                                                    </div>
+                                                ) : '-'}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        )}
+                    </div>
+                )}
+                
+                {activeTab === 'punctual' && (
+                    <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+                        {punctualInterventions.length === 0 ? (
+                            <div className="text-center py-12">
+                                <p className="text-2xl text-gray-400 mb-2">⚡</p>
+                                <p className="text-xl text-gray-600">No hay asistencias puntuales registradas</p>
+                            </div>
+                        ) : (
+                            <table className="min-w-full divide-y divide-gray-200">
+                                <thead className="bg-gray-50">
+                                    <tr>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fecha</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Horario</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Horas</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Notas</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Evidencias</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="bg-white divide-y divide-gray-200">
+                                    {punctualInterventions.map((intervention) => (
+                                        <tr key={intervention.id}>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                                {new Date(intervention.date).toLocaleDateString('es-ES', {
+                                                    day: 'numeric',
+                                                    month: 'long',
+                                                    year: 'numeric'
+                                                })}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                                                {intervention.startTime && intervention.endTime ? `${intervention.startTime} - ${intervention.endTime}` : (intervention.startTime || intervention.endTime || '-')}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-orange-600">
+                                                {intervention.hours}h
                                             </td>
                                             <td className="px-6 py-4 text-sm text-gray-500">
                                                 <div className="max-w-xs overflow-hidden text-ellipsis">

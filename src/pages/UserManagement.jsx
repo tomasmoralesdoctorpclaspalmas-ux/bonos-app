@@ -2,11 +2,12 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { getUsers, deleteUser, updateUser } from '../db';
+import { getUsers, deleteUser, updateUser, getEmpresas } from '../db';
 import { createUserAccount, sendPasswordReset } from '../auth';
 
 export default function UserManagement() {
     const [users, setUsers] = useState([]);
+    const [empresas, setEmpresas] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showForm, setShowForm] = useState(false);
     const [formData, setFormData] = useState({
@@ -15,7 +16,8 @@ export default function UserManagement() {
         name: '',
         role: 'client',
         phone: '',
-        companyName: ''
+        companyName: '',
+        empresaId: ''
     });
     const [editingUser, setEditingUser] = useState(null);
     const [error, setError] = useState('');
@@ -31,11 +33,15 @@ export default function UserManagement() {
     const loadUsers = async () => {
         try {
             setLoading(true);
-            const data = await getUsers();
-            setUsers(data);
+            const [usersData, empresasData] = await Promise.all([
+                getUsers(),
+                getEmpresas()
+            ]);
+            setUsers(usersData);
+            setEmpresas(empresasData);
         } catch (err) {
-            console.error('Error loading users:', err);
-            setError('Error al cargar usuarios');
+            console.error('Error loading data:', err);
+            setError('Error al cargar datos: ' + (err.message || 'Desconocido'));
         } finally {
             setLoading(false);
         }
@@ -53,7 +59,8 @@ export default function UserManagement() {
                     name: formData.name,
                     role: formData.role,
                     phone: formData.phone,
-                    companyName: formData.companyName
+                    companyName: formData.companyName,
+                    empresaId: formData.empresaId
                 });
                 setSuccess('Usuario actualizado correctamente');
             } else {
@@ -62,7 +69,8 @@ export default function UserManagement() {
                     name: formData.name,
                     role: formData.role,
                     phone: formData.phone,
-                    companyName: formData.companyName
+                    companyName: formData.companyName,
+                    empresaId: formData.empresaId
                 });
                 setSuccess('Usuario creado correctamente');
             }
@@ -91,7 +99,8 @@ export default function UserManagement() {
             name: '',
             role: 'client',
             phone: '',
-            companyName: ''
+            companyName: '',
+            empresaId: ''
         });
         setEditingUser(null);
         setShowForm(false);
@@ -105,7 +114,8 @@ export default function UserManagement() {
             name: user.name,
             role: user.role,
             phone: user.phone || '',
-            companyName: user.companyName || ''
+            companyName: user.companyName || '',
+            empresaId: user.empresaId || ''
         });
         setShowForm(true);
         window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -317,13 +327,24 @@ export default function UserManagement() {
                                     <label className="block text-sm font-medium text-gray-700 mb-1">
                                         Empresa (para clientes)
                                     </label>
-                                    <input
-                                        type="text"
-                                        value={formData.companyName}
-                                        onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
+                                    <select
+                                        value={formData.empresaId || ''}
+                                        onChange={(e) => {
+                                            const selectedId = e.target.value;
+                                            const selectedEmpresa = empresas.find(emp => emp.id === selectedId);
+                                            setFormData({ 
+                                                ...formData, 
+                                                empresaId: selectedId,
+                                                companyName: selectedEmpresa ? selectedEmpresa.name : ''
+                                            });
+                                        }}
                                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                                        placeholder="Nombre de la empresa"
-                                    />
+                                    >
+                                        <option value="">Ninguna / Cliente Particular</option>
+                                        {empresas.map(emp => (
+                                            <option key={emp.id} value={emp.id}>{emp.name}</option>
+                                        ))}
+                                    </select>
                                 </div>
                             </div>
 

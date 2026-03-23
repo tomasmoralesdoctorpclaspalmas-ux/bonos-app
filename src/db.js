@@ -18,6 +18,7 @@ const BONOS_COLLECTION = 'bonos';
 const USERS_COLLECTION = 'users';
 const INTERVENTIONS_COLLECTION = 'interventions';
 const PUNCTUAL_INTERVENTIONS_COLLECTION = 'punctual_interventions';
+const EMPRESAS_COLLECTION = 'empresas';
 
 // ============ BONOS ============
 
@@ -142,6 +143,46 @@ export const updateBonoHours = async (bonoId, hoursUsed) => {
         }
     } catch (error) {
         console.error('Error updating bono hours:', error);
+        throw error;
+    }
+};
+
+// ============ EMPRESAS ============
+
+// Get all empresas
+export const getEmpresas = async () => {
+    try {
+        // We order by name using client-side sort to avoid requiring a composite index immediately if none exists
+        const querySnapshot = await getDocs(collection(db, EMPRESAS_COLLECTION));
+        const empresas = [];
+        querySnapshot.forEach((doc) => {
+            empresas.push({
+                id: doc.id,
+                ...doc.data()
+            });
+        });
+        return empresas.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    } catch (error) {
+        console.error('Error getting empresas (puede que falten permisos en Firestore):', error);
+        return []; // Retorna array vacío en vez de romper la app //
+    }
+};
+
+// Add empresa
+export const addEmpresa = async (empresaData) => {
+    try {
+        const newEmpresa = {
+            ...empresaData,
+            createdAt: Timestamp.now(),
+            updatedAt: Timestamp.now()
+        };
+        const docRef = await addDoc(collection(db, EMPRESAS_COLLECTION), newEmpresa);
+        return {
+            id: docRef.id,
+            ...newEmpresa
+        };
+    } catch (error) {
+        console.error('Error adding empresa:', error);
         throw error;
     }
 };
@@ -347,6 +388,31 @@ export const getPunctualInterventions = async () => {
         return interventions;
     } catch (error) {
         console.error('Error getting punctual interventions:', error);
+        throw error;
+    }
+};
+
+// Get punctual interventions by client
+export const getPunctualInterventionsByClient = async (clientId) => {
+    try {
+        const q = query(
+            collection(db, PUNCTUAL_INTERVENTIONS_COLLECTION),
+            where('clientId', '==', clientId)
+        );
+        const querySnapshot = await getDocs(q);
+        const interventions = [];
+
+        querySnapshot.forEach((doc) => {
+            interventions.push({
+                id: doc.id,
+                ...doc.data(),
+                date: doc.data().date?.toDate().toISOString()
+            });
+        });
+
+        return interventions.sort((a, b) => new Date(b.date) - new Date(a.date));
+    } catch (error) {
+        console.error('Error getting punctual interventions by client:', error);
         throw error;
     }
 };
