@@ -21,6 +21,7 @@ export default function RegisterIntervention() {
     const [error, setError] = useState(null);
 
     useEffect(() => {
+        alert("COMPONENTE REGISTER_INTERVENTION CARGADO (VERSIÓN ALERTA)");
         loadClients();
     }, []);
 
