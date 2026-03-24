@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getInterventionsByClient, deleteIntervention, updateIntervention } from '../db';
+import InterventionEditModal from './InterventionEditModal';
 
 export default function ClientHistory({ client, onClose }) {
     const [interventions, setInterventions] = useState([]);
     const [loading, setLoading] = useState(true);
     const [selectedImage, setSelectedImage] = useState(null);
-    const [editingId, setEditingId] = useState(null);
-    const [editNotes, setEditNotes] = useState('');
+    const [editingIntervention, setEditingIntervention] = useState(null);
 
     useEffect(() => {
         if (client) {
@@ -38,20 +38,16 @@ export default function ClientHistory({ client, onClose }) {
     };
 
     const handleEdit = (intervention) => {
-        setEditingId(intervention.id);
-        setEditNotes(intervention.notes || '');
+        setEditingIntervention(intervention);
     };
 
-    const handleSaveEdit = async (intervention) => {
+    const handleSaveEdit = async (changes) => {
         try {
-            await updateIntervention(intervention.id, {
-                ...intervention,
-                notes: editNotes
-            });
+            const updated = await updateIntervention(editingIntervention.id, changes);
             setInterventions(prev => prev.map(i =>
-                i.id === intervention.id ? { ...i, notes: editNotes } : i
+                i.id === editingIntervention.id ? { ...i, ...updated } : i
             ));
-            setEditingId(null);
+            setEditingIntervention(null);
         } catch (error) {
             console.error('Error updating intervention:', error);
             alert('Error al actualizar la asistencia');
@@ -135,54 +131,25 @@ export default function ClientHistory({ client, onClose }) {
                                             </span>
                                         </div>
                                         <div className="flex gap-2">
-                                            {editingId === intervention.id ? (
-                                                <>
-                                                    <button
-                                                        onClick={() => handleSaveEdit(intervention)}
-                                                        className="text-green-600 hover:text-green-800 text-sm font-medium"
-                                                    >
-                                                        ✓ Guardar
-                                                    </button>
-                                                    <button
-                                                        onClick={() => setEditingId(null)}
-                                                        className="text-gray-600 hover:text-gray-800 text-sm font-medium"
-                                                    >
-                                                        ✕ Cancelar
-                                                    </button>
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <button
-                                                        onClick={() => handleEdit(intervention)}
-                                                        className="text-blue-600 hover:text-blue-800 text-sm font-medium"
-                                                    >
-                                                        ✏️ Editar
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleDelete(intervention)}
-                                                        className="text-red-600 hover:text-red-800 text-sm font-medium"
-                                                    >
-                                                        🗑️ Borrar
-                                                    </button>
-                                                </>
-                                            )}
+                                            <button
+                                                onClick={() => handleEdit(intervention)}
+                                                className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                                            >
+                                                ✏️ Editar
+                                            </button>
+                                            <button
+                                                onClick={() => handleDelete(intervention)}
+                                                className="text-red-600 hover:text-red-800 text-sm font-medium"
+                                            >
+                                                🗑️ Borrar
+                                            </button>
                                         </div>
                                     </div>
 
-                                    {editingId === intervention.id ? (
-                                        <textarea
-                                            value={editNotes}
-                                            onChange={(e) => setEditNotes(e.target.value)}
-                                            className="w-full text-gray-700 bg-white border border-blue-300 p-3 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
-                                            rows="3"
-                                            placeholder="Notas / Observaciones..."
-                                        />
-                                    ) : (
-                                        intervention.notes && (
-                                            <p className="text-gray-700 bg-gray-50 p-3 rounded-lg mb-4 text-sm">
-                                                {intervention.notes}
-                                            </p>
-                                        )
+                                    {intervention.notes && (
+                                        <p className="text-gray-700 bg-gray-50 p-3 rounded-lg mb-4 text-sm">
+                                            {intervention.notes}
+                                        </p>
                                     )}
 
                                     {/* Image Gallery */}
@@ -217,6 +184,17 @@ export default function ClientHistory({ client, onClose }) {
                     </button>
                 </div>
             </motion.div>
+
+            {/* Edit Modal */}
+            <AnimatePresence>
+                {editingIntervention && (
+                    <InterventionEditModal
+                        intervention={editingIntervention}
+                        onSave={handleSaveEdit}
+                        onCancel={() => setEditingIntervention(null)}
+                    />
+                )}
+            </AnimatePresence>
 
             {/* Lightbox for Images */}
             <AnimatePresence>

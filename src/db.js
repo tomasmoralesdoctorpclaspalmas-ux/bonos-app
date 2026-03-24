@@ -330,14 +330,39 @@ export const addIntervention = async (interventionData) => {
 export const updateIntervention = async (id, interventionData) => {
     try {
         const interventionRef = doc(db, INTERVENTIONS_COLLECTION, id);
+        const interventionDoc = await getDoc(interventionRef);
+        
+        if (!interventionDoc.exists()) {
+            throw new Error('Intervention not found');
+        }
+
+        const oldData = interventionDoc.data();
+        const oldHours = typeof oldData.hoursUsed === 'number' ? oldData.hoursUsed : 0;
+        const newHours = typeof interventionData.hoursUsed === 'number' ? interventionData.hoursUsed : oldHours;
+        const hourDiff = newHours - oldHours;
+
+        if (hourDiff !== 0 && oldData.bonoId) {
+            const bonoRef = doc(db, BONOS_COLLECTION, oldData.bonoId);
+            const bonoDoc = await getDoc(bonoRef);
+            if (bonoDoc.exists()) {
+                const bonoData = bonoDoc.data();
+                await updateDoc(bonoRef, {
+                    hoursRemaining: bonoData.hoursRemaining - hourDiff,
+                    hoursUsed: (bonoData.hoursUsed || 0) + hourDiff,
+                    updatedAt: Timestamp.now()
+                });
+            }
+        }
+
         const updateData = {
             ...interventionData,
-            date: interventionData.date ? Timestamp.fromDate(new Date(interventionData.date)) : Timestamp.now(),
+            date: interventionData.date ? Timestamp.fromDate(new Date(interventionData.date)) : oldData.date,
             updatedAt: Timestamp.now()
         };
 
         await updateDoc(interventionRef, updateData);
-        return { id, ...interventionData };
+        // Devolvemos todos los datos combinados para que re-renderice en UI
+        return { id, ...oldData, ...updateData, date: updateData.date.toDate().toISOString() };
     } catch (error) {
         console.error('Error updating intervention:', error);
         throw error;
@@ -464,15 +489,21 @@ export const addPunctualIntervention = async (data) => {
     }
 };
 
-// Update punctual intervention (mainly for notes)
+// Update punctual intervention (now supports full fields edits)
 export const updatePunctualIntervention = async (id, data) => {
     try {
         const docRef = doc(db, PUNCTUAL_INTERVENTIONS_COLLECTION, id);
-        await updateDoc(docRef, {
+        const updateData = {
             ...data,
             updatedAt: Timestamp.now()
-        });
-        return { id, ...data };
+        };
+        if (data.date) {
+            updateData.date = Timestamp.fromDate(new Date(data.date));
+        }
+        await updateDoc(docRef, updateData);
+        
+        // Devolvemos el mismo dato de entrada con formato final para actualizar la cache de UI
+        return { id, ...data, date: updateData.date ? updateData.date.toDate().toISOString() : data.date };
     } catch (error) {
         console.error('Error updating punctual intervention:', error);
         throw error;

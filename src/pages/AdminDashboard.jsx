@@ -9,6 +9,7 @@ import ClientHistory from '../components/ClientHistory';
 import EmpresaForm from '../components/EmpresaForm';
 import QuickUserForm from '../components/QuickUserForm';
 import { getBonos, addBono, updateBono, deleteBono, checkExpiredBonos, getPunctualInterventions, updatePunctualIntervention, deletePunctualIntervention } from '../db';
+import InterventionEditModal from '../components/InterventionEditModal';
 
 export default function AdminDashboard() {
     const [bonos, setBonos] = useState([]);
@@ -22,6 +23,7 @@ export default function AdminDashboard() {
     const [showMenu, setShowMenu] = useState(false);
     const [viewHistoryClient, setViewHistoryClient] = useState(null);
     const [punctualInterventions, setPunctualInterventions] = useState([]);
+    const [editingPunctual, setEditingPunctual] = useState(null);
 
     const { logout, currentUser } = useAuth();
     const navigate = useNavigate();
@@ -122,17 +124,19 @@ export default function AdminDashboard() {
         }
     };
 
-    const handleEditPunctualNotes = async (id, currentNotes) => {
-        const newNotes = prompt('Editar observaciones:', currentNotes);
-        if (newNotes === null) return;
+    const handleEditPunctual = (item) => {
+        setEditingPunctual(item);
+    };
 
+    const handleSavePunctual = async (changes) => {
         try {
             setError(null);
-            await updatePunctualIntervention(id, { notes: newNotes });
-            setPunctualInterventions(prev => prev.map(p => p.id === id ? { ...p, notes: newNotes } : p));
+            await updatePunctualIntervention(editingPunctual.id, changes);
+            setPunctualInterventions(prev => prev.map(p => p.id === editingPunctual.id ? { ...p, ...changes } : p));
+            setEditingPunctual(null);
         } catch (err) {
-            console.error('Error updating punctual notes:', err);
-            setError('Error al actualizar las observaciones.');
+            console.error('Error updating punctual:', err);
+            setError('Error al actualizar la asistencia puntual.');
         }
     };
 
@@ -387,9 +391,9 @@ export default function AdminDashboard() {
                                                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                                     <div className="flex justify-end gap-3">
                                                         <button
-                                                            onClick={() => handleEditPunctualNotes(item.id, item.notes)}
+                                                            onClick={() => handleEditPunctual(item)}
                                                             className="text-orange-600 hover:text-orange-900 bg-orange-50 px-2 py-1 rounded"
-                                                            title="Editar notas"
+                                                            title="Editar asistencia"
                                                         >
                                                             ✏️
                                                         </button>
@@ -438,6 +442,17 @@ export default function AdminDashboard() {
                     </div>
                 )}
             </main>
+
+            {/* Edit Punctual Modal */}
+            <AnimatePresence>
+                {editingPunctual && (
+                    <InterventionEditModal
+                        intervention={editingPunctual}
+                        onSave={handleSavePunctual}
+                        onCancel={() => setEditingPunctual(null)}
+                    />
+                )}
+            </AnimatePresence>
         </div>
     );
 }
