@@ -81,26 +81,33 @@ export default function RegisterIntervention() {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        setLoading(true);
-        setError(null);
-
-        if (!selectedBono || !hours || parseFloat(hours) <= 0) {
-            setError('Por favor selecciona un bono y horas válidas');
-            setLoading(false);
-            return;
-        }
-
-        const bono = bonos.find(b => b.id === selectedBono);
-        if (parseFloat(hours) > bono.hoursRemaining) {
-            setError(`No puedes registrar más horas de las disponibles (${bono.hoursRemaining}h)`);
-            setLoading(false);
-            return;
-        }
-
+        alert("¡Código de enviado detectado! Procesando...");
+        
         try {
+            setLoading(true);
+            setError(null);
+
+            if (!selectedBono || !hours || parseFloat(hours) <= 0) {
+                setError('Por favor selecciona un bono y horas válidas');
+                setLoading(false);
+                return;
+            }
+
+            const bono = bonos.find(b => b.id === selectedBono);
+            if (!bono) {
+                throw new Error("No se pudo encontrar la información del Bono seleccionado.");
+            }
+
+            if (parseFloat(hours) > bono.hoursRemaining) {
+                setError(`No puedes registrar más horas de las disponibles (${bono.hoursRemaining}h)`);
+                setLoading(false);
+                return;
+            }
+
             // Upload images
             const imageUrls = [];
             if (images.length > 0) {
+                alert(`Iniciando subida de ${images.length} imágenes...`);
                 console.log('Starting image uploads...', images.length, 'images');
                 
                 const uploadWithTimeout = (image, timeoutMs = 30000) => {
@@ -124,8 +131,10 @@ export default function RegisterIntervention() {
                     try {
                         const url = await uploadWithTimeout(image);
                         imageUrls.push(url);
+                        alert(`Imagen "${image.name}" subida con éxito.`);
                         console.log('Image uploaded successfully');
                     } catch (uploadErr) {
+                        alert(`ERROR CRÍTICO: ${uploadErr.message}`);
                         console.error('Individual image upload failed:', uploadErr);
                         throw new Error(`Error al subir la imagen "${image.name}": ${uploadErr.message}`);
                     }
@@ -150,6 +159,7 @@ export default function RegisterIntervention() {
             navigate('/admin');
         } catch (err) {
             console.error('Error registering intervention:', err);
+            alert("OCURRIÓ UN ERROR: " + err.message);
             setError(err.message || 'Error al registrar la asistencia. Intenta nuevamente.');
         } finally {
             setLoading(false);

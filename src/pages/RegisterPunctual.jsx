@@ -54,19 +54,22 @@ export default function RegisterPunctual() {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        setLoading(true);
-        setError(null);
-
-        if (!clientName || !hours || parseFloat(hours) <= 0) {
-            setError('Por favor rellena el nombre y las horas');
-            setLoading(false);
-            return;
-        }
-
+        alert("¡Envío Detectado! Procesando asistencia puntual...");
+        
         try {
+            setLoading(true);
+            setError(null);
+
+            if (!clientName || !hours || parseFloat(hours) <= 0) {
+                setError('Por favor rellena el nombre y las horas');
+                setLoading(false);
+                return;
+            }
+
             // Upload images
             const imageUrls = [];
             if (images.length > 0) {
+                alert(`Iniciando subida de ${images.length} imágenes...`);
                 console.log('Starting image uploads...', images.length, 'images');
                 
                 const uploadWithTimeout = (image, timeoutMs = 30000) => {
@@ -86,9 +89,11 @@ export default function RegisterPunctual() {
                     try {
                         const url = await uploadWithTimeout(image);
                         imageUrls.push(url);
+                        alert(`Imagen "${image.name}" subida con éxito.`);
                     } catch (uploadErr) {
+                        alert(`ERROR CRÍTICO: ${uploadErr.message}`);
                         console.error('Individual image upload failed:', uploadErr);
-                        throw new Error(`Error al subir la imagen "${image.name}": ${uploadErr.message}`);
+                        throw new Error(`Error al subir the imagen "${image.name}": ${uploadErr.message}`);
                     }
                 }
             }
@@ -108,6 +113,7 @@ export default function RegisterPunctual() {
             navigate('/admin');
         } catch (err) {
             console.error('Error registering punctual intervention:', err);
+            alert("OCURRIÓ UN ERROR: " + err.message);
             setError(err.message || 'Error al registrar la asistencia. Intenta nuevamente.');
         } finally {
             setLoading(false);
