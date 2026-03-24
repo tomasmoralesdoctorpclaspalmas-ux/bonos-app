@@ -2,14 +2,22 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { getUsers, deleteUser, updateUser, getEmpresas } from '../db';
+import { getUsers, deleteUser, updateUser, getEmpresas, updateEmpresa, deleteEmpresa, addEmpresa } from '../db';
 import { createUserAccount, sendPasswordReset } from '../auth';
 
 export default function UserManagement() {
+    const [activeTab, setActiveTab] = useState('users');
     const [users, setUsers] = useState([]);
     const [empresas, setEmpresas] = useState([]);
+    
+    // User states
     const [loading, setLoading] = useState(true);
     const [showForm, setShowForm] = useState(false);
+    
+    // Empresa states
+    const [showEmpresaForm, setShowEmpresaForm] = useState(false);
+    const [editingEmpresa, setEditingEmpresa] = useState(null);
+    const [empresaFormData, setEmpresaFormData] = useState({ name: '' });
     const [formData, setFormData] = useState({
         email: '',
         password: '',
@@ -150,6 +158,54 @@ export default function UserManagement() {
         navigate('/login');
     };
 
+    // Empresa Methods
+    const handleEditEmpresa = (emp) => {
+        setEditingEmpresa(emp);
+        setEmpresaFormData({ name: emp.name });
+        setShowEmpresaForm(true);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    const handleDeleteEmpresa = async (id) => {
+        if (!confirm('¿Estás seguro de eliminar esta empresa? Los bonos y asistencias asociados perderán la referencia al nombre de la empresa.')) return;
+        try {
+            await deleteEmpresa(id);
+            setEmpresas(prev => prev.filter(e => e.id !== id));
+            setSuccess('Empresa eliminada correctamente');
+            setTimeout(() => setSuccess(''), 3000);
+        } catch (err) {
+            console.error(err);
+            setError('Error al eliminar la empresa');
+        }
+    };
+
+    const handleSaveEmpresa = async (e) => {
+        e.preventDefault();
+        try {
+            setLoading(true);
+            setError('');
+            if (editingEmpresa) {
+                const updated = await updateEmpresa(editingEmpresa.id, { name: empresaFormData.name });
+                setEmpresas(prev => prev.map(emp => emp.id === editingEmpresa.id ? updated : emp));
+                setSuccess('Empresa actualizada correctamente');
+            } else {
+                const newEmpresa = await addEmpresa({ name: empresaFormData.name });
+                setEmpresas(prev => [...prev, newEmpresa]);
+                setSuccess('Empresa creada correctamente');
+            }
+            setTimeout(() => setSuccess(''), 3000);
+            
+            setShowEmpresaForm(false);
+            setEditingEmpresa(null);
+            setEmpresaFormData({ name: '' });
+        } catch (err) {
+            console.error(err);
+            setError('Error al guardar la empresa');
+        } finally {
+            setLoading(false);
+        }
+    };
+
     if (loading) {
         return (
             <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
@@ -178,15 +234,32 @@ export default function UserManagement() {
                             >
                                 🎫 Bonos
                             </button>
-                            <button
-                                onClick={() => {
-                                    if (showForm) resetForm();
-                                    else setShowForm(true);
-                                }}
-                                className="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg shadow-lg transition-all"
-                            >
-                                {showForm ? '❌ Cancelar' : '➕ Nuevo Usuario'}
-                            </button>
+                            {activeTab === 'users' ? (
+                                <button
+                                    onClick={() => {
+                                        if (showForm) resetForm();
+                                        else setShowForm(true);
+                                    }}
+                                    className="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg shadow-lg transition-all"
+                                >
+                                    {showForm ? '❌ Cancelar' : '➕ Nuevo Usuario'}
+                                </button>
+                            ) : (
+                                <button
+                                    onClick={() => {
+                                        if (showEmpresaForm) {
+                                            setShowEmpresaForm(false);
+                                            setEditingEmpresa(null);
+                                            setEmpresaFormData({ name: '' });
+                                        } else {
+                                            setShowEmpresaForm(true);
+                                        }
+                                    }}
+                                    className="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg shadow-lg transition-all"
+                                >
+                                    {showEmpresaForm ? '❌ Cancelar' : '🏢 Nueva Empresa'}
+                                </button>
+                            )}
                             <button
                                 onClick={handleLogout}
                                 className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 px-6 rounded-lg shadow-lg transition-all"
@@ -221,7 +294,31 @@ export default function UserManagement() {
                     </motion.div>
                 )}
 
-                {/* Create User Form */}
+                {/* Tabs */}
+                <div className="flex gap-4 mb-6">
+                    <button
+                        onClick={() => setActiveTab('users')}
+                        className={`px-6 py-3 rounded-lg font-semibold transition-all ${activeTab === 'users'
+                            ? 'bg-blue-600 text-white shadow-lg'
+                            : 'bg-white text-gray-700 hover:bg-gray-100 shadow'
+                            }`}
+                    >
+                        👥 Usuarios
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('empresas')}
+                        className={`px-6 py-3 rounded-lg font-semibold transition-all ${activeTab === 'empresas'
+                            ? 'bg-blue-600 text-white shadow-lg'
+                            : 'bg-white text-gray-700 hover:bg-gray-100 shadow'
+                            }`}
+                    >
+                        🏢 Empresas
+                    </button>
+                </div>
+
+                {activeTab === 'users' && (
+                    <>
+                        {/* Create User Form */}
                 {showForm && (
                     <motion.div
                         initial={{ opacity: 0, scale: 0.95 }}
@@ -425,6 +522,94 @@ export default function UserManagement() {
                         </tbody>
                     </table>
                 </div>
+                    </>
+                )}
+
+                {activeTab === 'empresas' && (
+                    <>
+                        {/* Create/Edit Empresa Form */}
+                        {showEmpresaForm && (
+                            <motion.div
+                                initial={{ opacity: 0, scale: 0.95 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                className="bg-white rounded-lg shadow-lg p-6 mb-6"
+                            >
+                                <h2 className="text-2xl font-bold mb-4 text-gray-800">
+                                    {editingEmpresa ? `Editando: ${editingEmpresa.name}` : 'Crear Nueva Empresa'}
+                                </h2>
+
+                                <form onSubmit={handleSaveEmpresa} className="space-y-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                                            Nombre de la empresa *
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={empresaFormData.name}
+                                            onChange={(e) => setEmpresaFormData({ name: e.target.value })}
+                                            required
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                            placeholder="Ej: Acme Corp S.A."
+                                        />
+                                    </div>
+
+                                    <button
+                                        type="submit"
+                                        className={`w-full font-bold py-3 px-4 rounded-lg transition-colors ${editingEmpresa ? 'bg-blue-600 hover:bg-blue-700' : 'bg-green-600 hover:bg-green-700'} text-white`}
+                                    >
+                                        {editingEmpresa ? 'Guardar Cambios' : 'Crear Empresa'}
+                                    </button>
+                                </form>
+                            </motion.div>
+                        )}
+
+                        {/* Empresas List */}
+                        <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+                            <table className="min-w-full divide-y divide-gray-200">
+                                <thead className="bg-gray-50">
+                                    <tr>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            Empresa
+                                        </th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            Acciones
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody className="bg-white divide-y divide-gray-200">
+                                    {empresas.map((emp) => (
+                                        <tr key={emp.id}>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <div className="text-sm font-medium text-gray-900">{emp.name}</div>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium flex gap-3">
+                                                <button
+                                                    onClick={() => handleEditEmpresa(emp)}
+                                                    className="text-blue-600 hover:text-blue-900"
+                                                >
+                                                    ✏️ Editar
+                                                </button>
+                                                <button
+                                                    onClick={() => handleDeleteEmpresa(emp.id)}
+                                                    className="text-red-600 hover:text-red-900"
+                                                >
+                                                    🗑️ Eliminar
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                    {empresas.length === 0 && (
+                                        <tr>
+                                            <td colSpan="2" className="px-6 py-4 text-center text-gray-500">
+                                                No hay empresas registradas.
+                                            </td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </>
+                )}
             </main>
         </div>
     );

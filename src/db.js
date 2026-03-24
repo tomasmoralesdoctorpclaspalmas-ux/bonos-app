@@ -187,6 +187,33 @@ export const addEmpresa = async (empresaData) => {
     }
 };
 
+// Update empresa
+export const updateEmpresa = async (id, empresaData) => {
+    try {
+        const docRef = doc(db, EMPRESAS_COLLECTION, id);
+        const updateData = {
+            ...empresaData,
+            updatedAt: Timestamp.now()
+        };
+        await updateDoc(docRef, updateData);
+        return { id, ...updateData };
+    } catch (error) {
+        console.error('Error updating empresa:', error);
+        throw error;
+    }
+};
+
+// Delete empresa
+export const deleteEmpresa = async (id) => {
+    try {
+        await deleteDoc(doc(db, EMPRESAS_COLLECTION, id));
+        return id;
+    } catch (error) {
+        console.error('Error deleting empresa:', error);
+        throw error;
+    }
+};
+
 // ============ USERS ============
 
 // Get all users
