@@ -102,20 +102,36 @@ export default function RegisterIntervention() {
             const imageUrls = [];
             if (images.length > 0) {
                 console.log('Starting image uploads...', images.length, 'images');
+                
+                const uploadWithTimeout = (image, timeoutMs = 30000) => {
+                    const path = `interventions/${selectedClient}/${Date.now()}_${image.name}`;
+                    console.log('Uploading to path:', path);
+                    const storageRef = ref(storage, path);
+                    
+                    const uploadPromise = uploadBytes(storageRef, image)
+                        .then(() => getDownloadURL(storageRef));
+                    
+                    const timeoutPromise = new Promise((_, reject) =>
+                        setTimeout(() => reject(new Error(
+                            `Timeout al subir "${image.name}". Comprueba las reglas de Firebase Storage y que el proyecto tiene Storage habilitado.`
+                        )), timeoutMs)
+                    );
+                    
+                    return Promise.race([uploadPromise, timeoutPromise]);
+                };
+                
                 for (const image of images) {
                     try {
-                        const path = `interventions/${selectedClient}/${Date.now()}_${image.name}`;
-                        console.log('Uploading to path:', path);
-                        const storageRef = ref(storage, path);
-                        await uploadBytes(storageRef, image);
-                        const url = await getDownloadURL(storageRef);
+                        const url = await uploadWithTimeout(image);
                         imageUrls.push(url);
+                        console.log('Image uploaded successfully');
                     } catch (uploadErr) {
                         console.error('Individual image upload failed:', uploadErr);
-                        throw new Error(`Error al subir la imagen ${image.name}: ${uploadErr.message}`);
+                        throw new Error(`Error al subir la imagen "${image.name}": ${uploadErr.message}`);
                     }
                 }
             }
+
 
             // Create intervention
             console.log('Saving intervention data to Firestore...');
