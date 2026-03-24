@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { getUsers, getBonosByClient, addIntervention } from '../db';
+import { getEmpresas, getBonos, getBonosByClient, addIntervention } from '../db';
 import { storage } from '../firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
@@ -35,8 +35,22 @@ export default function RegisterIntervention() {
 
     const loadClients = async () => {
         try {
-            const allUsers = await getUsers();
-            setClients(allUsers.filter(u => u.role !== 'admin'));
+            const [allBonos, allEmpresas] = await Promise.all([
+                getBonos(),
+                getEmpresas()
+            ]);
+            
+            // Buscar qué IDs tienen bonos activos
+            const activeBonoClientIds = new Set(
+                allBonos
+                    .filter(b => b.status === 'active' && b.hoursRemaining > 0)
+                    .map(b => b.clientId)
+            );
+
+            // Filtrar y dejar SOLO las EMPRESAS que tengan bonos activos
+            const empresasConBono = allEmpresas.filter(emp => activeBonoClientIds.has(emp.id));
+            
+            setClients(empresasConBono);
         } catch (err) {
             console.error('Error loading clients:', err);
             setError('Error al cargar clientes');
@@ -114,7 +128,7 @@ export default function RegisterIntervention() {
                 endTime,
                 notes,
                 images: imageUrls,
-                clientName: clients.find(c => c.uid === selectedClient)?.name
+                clientName: clients.find(c => c.id === selectedClient)?.name
             });
 
             navigate('/admin');
@@ -159,7 +173,7 @@ export default function RegisterIntervention() {
                                 >
                                     <option value="">Seleccionar Cliente...</option>
                                     {clients.map(client => (
-                                        <option key={client.uid} value={client.uid}>
+                                        <option key={client.id} value={client.id}>
                                             {client.name}
                                         </option>
                                     ))}
