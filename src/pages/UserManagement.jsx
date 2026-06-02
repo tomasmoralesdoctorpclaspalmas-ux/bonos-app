@@ -76,6 +76,38 @@ export default function UserManagement() {
                     companyName: formData.companyName,
                     empresaId: formData.empresaId
                 });
+
+                // If password is provided, update it directly via API
+                if (formData.password && formData.password.trim() !== '') {
+                    if (formData.password.length < 6) {
+                        setError('La contraseña debe tener al menos 6 caracteres');
+                        return;
+                    }
+                    
+                    const currentUser = auth.currentUser;
+                    if (!currentUser) {
+                        throw new Error('No has iniciado sesión o la sesión ha expirado.');
+                    }
+                    const idToken = await currentUser.getIdToken(true);
+
+                    const response = await fetch('/api/change-password', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${idToken}`
+                        },
+                        body: JSON.stringify({
+                            targetUid: editingUser.uid,
+                            newPassword: formData.password
+                        })
+                    });
+
+                    const data = await response.json();
+                    if (!response.ok) {
+                        throw new Error(data.error || 'Error al cambiar la contraseña directamente');
+                    }
+                }
+
                 setSuccess('Usuario actualizado correctamente');
             } else {
                 // Create user in Firebase Auth
@@ -101,7 +133,7 @@ export default function UserManagement() {
             } else if (err.code === 'auth/weak-password') {
                 setError('La contraseña debe tener al menos 6 caracteres');
             } else {
-                setError('Error al procesar la solicitud. Intenta nuevamente.');
+                setError(err.message || 'Error al procesar la solicitud. Intenta nuevamente.');
             }
         }
     };
@@ -420,31 +452,28 @@ export default function UserManagement() {
 
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        {editingUser ? 'Nueva Contraseña (vía Email)' : 'Contraseña *'}
+                                        {editingUser ? 'Nueva Contraseña (directa)' : 'Contraseña *'}
                                     </label>
-                                    <div className="flex gap-2">
-                                        {editingUser ? (
+                                    <input
+                                        type="password"
+                                        value={formData.password}
+                                        onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                                        required={!editingUser}
+                                        minLength={6}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                        placeholder={editingUser ? "Dejar en blanco para no modificar" : "Mínimo 6 caracteres"}
+                                    />
+                                    {editingUser && (
+                                        <div className="flex justify-between items-center mt-1">
+                                            <p className="text-xs text-gray-500">Se cambiará directamente al guardar.</p>
                                             <button
                                                 type="button"
                                                 onClick={() => handleResetPassword(editingUser.email)}
-                                                className="w-full py-2 px-4 bg-orange-50 border border-orange-200 text-orange-700 rounded-lg hover:bg-orange-100 transition-colors text-sm font-semibold flex items-center justify-center gap-2"
+                                                className="text-xs text-orange-600 hover:text-orange-850 font-semibold underline"
                                             >
-                                                📧 Enviar enlace de cambio de clave
+                                                O enviar enlace por email
                                             </button>
-                                        ) : (
-                                            <input
-                                                type="password"
-                                                value={formData.password}
-                                                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                                                required={!editingUser}
-                                                minLength={6}
-                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                                                placeholder="Mínimo 6 caracteres"
-                                            />
-                                        )}
-                                    </div>
-                                    {editingUser && (
-                                        <p className="text-xs text-gray-500 mt-1">Por seguridad, el administrador envía un enlace para que el usuario elija su clave.</p>
+                                        </div>
                                     )}
                                 </div>
 
