@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { getUsers, deleteUser, updateUser, getEmpresas, updateEmpresa, deleteEmpresa, addEmpresa } from '../db';
-import { createUserAccount, sendPasswordReset } from '../auth';
+import { createUserAccount, sendPasswordReset, auth } from '../auth';
+
 
 export default function UserManagement() {
     const [activeTab, setActiveTab] = useState('users');
@@ -30,6 +31,11 @@ export default function UserManagement() {
     const [editingUser, setEditingUser] = useState(null);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
+    const [passwordChangeUser, setPasswordChangeUser] = useState(null);
+    const [newPassword, setNewPassword] = useState('');
+    const [showPassword, setShowPassword] = useState(false);
+    const [changingPassword, setChangingPassword] = useState(false);
+
 
     const { logout } = useAuth();
     const navigate = useNavigate();
@@ -140,6 +146,55 @@ export default function UserManagement() {
             setError('Error al enviar el email de restablecimiento');
         }
     };
+
+    const handleDirectPasswordChange = async (e) => {
+        e.preventDefault();
+        if (!passwordChangeUser) return;
+        if (newPassword.length < 6) {
+            setError('La contraseña debe tener al menos 6 caracteres');
+            return;
+        }
+
+        setChangingPassword(true);
+        setError('');
+        setSuccess('');
+
+        try {
+            const currentUser = auth.currentUser;
+            if (!currentUser) {
+                throw new Error('No has iniciado sesión o la sesión ha expirado.');
+            }
+            const idToken = await currentUser.getIdToken(true);
+
+            const response = await fetch('/api/change-password', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${idToken}`
+                },
+                body: JSON.stringify({
+                    targetUid: passwordChangeUser.uid,
+                    newPassword: newPassword
+                })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || 'Error al cambiar la contraseña');
+            }
+
+            setSuccess(`Contraseña de ${passwordChangeUser.name} actualizada correctamente.`);
+            setPasswordChangeUser(null);
+            setNewPassword('');
+        } catch (err) {
+            console.error('Error direct password change:', err);
+            setError(err.message || 'Error al actualizar la contraseña.');
+        } finally {
+            setChangingPassword(false);
+        }
+    };
+
 
     const handleDelete = async (uid) => {
         if (!confirm('¿Estás seguro de eliminar este usuario?')) return;
@@ -511,6 +566,16 @@ export default function UserManagement() {
                                             ✏️ Editar
                                         </button>
                                         <button
+                                            onClick={() => {
+                                                setPasswordChangeUser(user);
+                                                setNewPassword('');
+                                                setShowPassword(false);
+                                            }}
+                                            className="text-amber-600 hover:text-amber-900"
+                                        >
+                                            🔑 Clave
+                                        </button>
+                                        <button
                                             onClick={() => handleDelete(user.uid)}
                                             className="text-red-600 hover:text-red-900"
                                         >
@@ -610,6 +675,109 @@ export default function UserManagement() {
                         </div>
                     </>
                 )}
+
+                {/* Password Change Modal */}
+                <AnimatePresence>
+                    {passwordChangeUser && (
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50 backdrop-blur-sm"
+                        >
+                            <motion.div
+                                initial={{ scale: 0.95, y: 20 }}
+                                animate={{ scale: 1, y: 0 }}
+                                exit={{ scale: 0.95, y: 20 }}
+                                className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 border border-gray-100"
+                            >
+                                <div className="flex justify-between items-start mb-4">
+                                    <div>
+                                        <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                                            <span>🔑</span> Cambiar Contraseña
+                                        </h3>
+                                        <p className="text-sm text-gray-500 mt-1">
+                                            Usuario: <span className="font-semibold text-gray-700">{passwordChangeUser.name}</span>
+                                        </p>
+                                        <p className="text-xs text-gray-400">
+                                            Email: {passwordChangeUser.email}
+                                        </p>
+                                    </div>
+                                    <button
+                                        onClick={() => setPasswordChangeUser(null)}
+                                        className="text-gray-400 hover:text-gray-600 transition-colors"
+                                    >
+                                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                                        </svg>
+                                    </button>
+                                </div>
+
+                                <form onSubmit={handleDirectPasswordChange} className="space-y-4">
+                                    <div>
+                                        <label className="block text-sm font-semibold text-gray-700 mb-1">
+                                            Nueva Contraseña
+                                        </label>
+                                        <div className="relative">
+                                            <input
+                                                type={showPassword ? "text" : "password"}
+                                                value={newPassword}
+                                                onChange={(e) => setNewPassword(e.target.value)}
+                                                required
+                                                minLength={6}
+                                                autoFocus
+                                                placeholder="Mínimo 6 caracteres"
+                                                className="w-full pl-3 pr-10 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-gray-950 font-medium"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowPassword(!showPassword)}
+                                                className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+                                            >
+                                                {showPassword ? (
+                                                    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
+                                                    </svg>
+                                                ) : (
+                                                    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                                    </svg>
+                                                )}
+                                            </button>
+                                        </div>
+                                        <p className="text-xs text-gray-500 mt-1">La nueva contraseña se guardará inmediatamente en Firebase Auth.</p>
+                                    </div>
+
+                                    <div className="flex gap-3 pt-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => setPasswordChangeUser(null)}
+                                            disabled={changingPassword}
+                                            className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-2.5 px-4 rounded-xl transition-colors border border-gray-200"
+                                        >
+                                            Cancelar
+                                        </button>
+                                        <button
+                                            type="submit"
+                                            disabled={changingPassword}
+                                            className="flex-1 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white font-semibold py-2.5 px-4 rounded-xl transition-all shadow-md hover:shadow-lg disabled:opacity-50 flex items-center justify-center gap-2"
+                                        >
+                                            {changingPassword ? (
+                                                <>
+                                                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                                                    Guardando...
+                                                </>
+                                            ) : (
+                                                'Guardar Clave'
+                                            )}
+                                        </button>
+                                    </div>
+                                </form>
+                            </motion.div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
             </main>
         </div>
     );
