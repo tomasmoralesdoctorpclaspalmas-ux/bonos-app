@@ -1,3 +1,4 @@
+// Trigger Vercel redeployment to apply new environment variables
 import admin from 'firebase-admin';
 
 // Initialize Firebase Admin SDK
