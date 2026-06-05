@@ -8,9 +8,9 @@ import BonoCard from '../components/BonoCard';
 import ClientHistory from '../components/ClientHistory';
 import EmpresaForm from '../components/EmpresaForm';
 import QuickUserForm from '../components/QuickUserForm';
-import ResumenHoras from '../components/ResumenHoras';
 import { getBonos, addBono, updateBono, deleteBono, checkExpiredBonos, getPunctualInterventions, updatePunctualIntervention, deletePunctualIntervention, getInterventions, getUsers, getEmpresas } from '../db';
 import InterventionEditModal from '../components/InterventionEditModal';
+import ResumenHoras from '../components/ResumenHoras';
 
 export default function AdminDashboard() {
     const [bonos, setBonos] = useState([]);
@@ -41,13 +41,22 @@ export default function AdminDashboard() {
             setLoading(true);
             setError(null);
 
-            // Load all data in parallel
+            // Load bonos, punctual interventions, all interventions, users, and empresas in parallel
             const [bonosData, punctualData, interventionsData, usersData, empresasData] = await Promise.all([
                 getBonos(),
                 getPunctualInterventions(),
-                getInterventions().catch(() => []),
-                getUsers().catch(() => []),
-                getEmpresas().catch(() => [])
+                getInterventions().catch(err => {
+                    console.error('Error loading interventions:', err);
+                    return [];
+                }),
+                getUsers().catch(err => {
+                    console.error('Error loading users:', err);
+                    return [];
+                }),
+                getEmpresas().catch(err => {
+                    console.error('Error loading empresas:', err);
+                    return [];
+                })
             ]);
 
             const updatedBonos = checkExpiredBonos(bonosData);
@@ -58,7 +67,7 @@ export default function AdminDashboard() {
             setEmpresas(empresasData);
         } catch (err) {
             console.error('Error loading data:', err);
-            setError('Error al cargar la información. Verifica tu configuración de Supabase.');
+            setError('Error al cargar la información. Verifica tu configuración de Firebase.');
         } finally {
             setLoading(false);
         }

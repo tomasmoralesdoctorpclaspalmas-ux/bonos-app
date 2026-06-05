@@ -1,90 +1,35 @@
-import { createClient } from '@supabase/supabase-js';
-import { supabase } from './supabase';
+import {
+    signInWithEmailAndPassword,
+    signOut,
+    onAuthStateChanged,
+    createUserWithEmailAndPassword,
+    sendPasswordResetEmail
+} from 'firebase/auth';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { getAuth } from 'firebase/auth';
+import { initializeApp, deleteApp } from 'firebase/app';
+import { db, firebaseConfig } from './firebase';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-// Cache the current user for synchronous access (like Firebase's auth.currentUser)
-let cachedUser = null;
-supabase.auth.getSession().then(({ data: { session } }) => {
-    cachedUser = session?.user || null;
-});
-
-supabase.auth.onAuthStateChange((event, session) => {
-    cachedUser = session?.user || null;
-});
-
-export const auth = {
-    get currentUser() {
-        if (!cachedUser) {
-            // Fallback attempt to get synchronously from supabase private state if possible
-            // but the cachedUser is the most reliable way.
-            return null;
-        }
-        return {
-            uid: cachedUser.id,
-            email: cachedUser.email,
-            getIdToken: async (forceRefresh) => {
-                const { data: { session }, error } = await supabase.auth.getSession();
-                if (error || !session) return '';
-                return session.access_token;
-            }
-        };
-    }
-};
-
-// Get current user data from the database
-export const getCurrentUserData = async (uid) => {
-    try {
-        const { data, error } = await supabase
-            .from('users')
-            .select('*')
-            .eq('id', uid)
-            .single();
-
-        if (error) {
-            if (error.code === 'PGRST116') {
-                // Single result not found
-                return null;
-            }
-            throw error;
-        }
-
-        // Map database fields camelCase for frontend compatibility
-        return {
-            uid: data.id,
-            name: data.name,
-            email: data.email,
-            phone: data.phone || '',
-            role: data.role,
-            companyName: data.company_name || '',
-            empresaId: data.empresa_id || '',
-            createdAt: data.created_at,
-            updatedAt: data.updated_at
-        };
-    } catch (error) {
-        console.error('Error getting user data:', error);
-        throw error;
-    }
-};
+// Initialize Auth
+export const auth = getAuth();
 
 // Login user
 export const loginUser = async (email, password) => {
     try {
-        const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-            email,
-            password
-        });
+        const userCredential = await signInWithEmailAndPassword(auth, email, password);
+        const user = userCredential.user;
 
-        if (authError) throw authError;
+        // Get user data from Firestore
+        const userDoc = await getDoc(doc(db, 'users', user.uid));
 
-        const user = authData.user;
-        const userData = await getCurrentUserData(user.id);
-
-        if (userData) {
-            return userData;
+        if (userDoc.exists()) {
+            return {
+                uid: user.uid,
+                email: user.email,
+                ...userDoc.data()
+            };
         } else {
-            throw new Error('Usuario no encontrado en la base de datos de perfiles');
+            throw new Error('Usuario no encontrado en la base de datos');
         }
     } catch (error) {
         console.error('Error logging in:', error);
@@ -95,80 +40,71 @@ export const loginUser = async (email, password) => {
 // Logout user
 export const logoutUser = async () => {
     try {
-        const { error } = await supabase.auth.signOut();
-        if (error) throw error;
+        await signOut(auth);
     } catch (error) {
         console.error('Error logging out:', error);
         throw error;
     }
 };
 
-// Create user account (without logging out current user)
+// Create user with email and password
 export const createUserAccount = async (email, password, userData) => {
+    let secondaryApp;
     try {
-        // Initialize an isolated Supabase client to prevent changing the current session
-        const tempClient = createClient(supabaseUrl, supabaseAnonKey, {
-            auth: {
-                persistSession: false,
-                autoRefreshToken: false,
-                detectSessionInUrl: false
-            }
-        });
+        // Initialize a secondary Firebase app to avoid logging out the current user (admin)
+        secondaryApp = initializeApp(firebaseConfig, "secondary");
+        const secondaryAuth = getAuth(secondaryApp);
 
-        const { data: authData, error: authError } = await tempClient.auth.signUp({
+        // Create user in the secondary app
+        const userCredential = await createUserWithEmailAndPassword(secondaryAuth, email, password);
+        const user = userCredential.user;
+
+        // Store user data in Firestore (using main db instance is fine)
+        await setDoc(doc(db, 'users', user.uid), {
+            ...userData,
             email,
-            password
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
         });
 
-        if (authError) throw authError;
-        const user = authData.user;
+        // Cleanup secondary auth
+        await signOut(secondaryAuth);
 
-        if (!user) throw new Error('Error al registrar las credenciales de usuario');
-
-        // Create the user profile in the public.users table
-        const { error: dbError } = await supabase
-            .from('users')
-            .insert([{
-                id: user.id,
-                name: userData.name,
-                email: email,
-                phone: userData.phone || '',
-                role: userData.role || 'client',
-                company_name: userData.companyName || '',
-                empresa_id: userData.empresaId || null,
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString()
-            }]);
-
-        if (dbError) throw dbError;
-
-        return user.id;
+        return user.uid;
     } catch (error) {
         console.error('Error creating user:', error);
+        throw error;
+    } finally {
+        if (secondaryApp) {
+            await deleteApp(secondaryApp);
+        }
+    }
+};
+
+// Get current user data
+export const getCurrentUserData = async (uid) => {
+    try {
+        const userDoc = await getDoc(doc(db, 'users', uid));
+
+        if (userDoc.exists()) {
+            return {
+                uid,
+                ...userDoc.data()
+            };
+        }
+        return null;
+    } catch (error) {
+        console.error('Error getting user data:', error);
         throw error;
     }
 };
 
 // Auth state observer
 export const onAuthStateChange = (callback) => {
-    // Check initial state
-    supabase.auth.getSession().then(({ data: { session } }) => {
-        if (session?.user) {
-            getCurrentUserData(session.user.id).then(userData => {
-                callback(userData);
-            }).catch(() => {
-                callback(null);
-            });
-        } else {
-            callback(null);
-        }
-    });
-
-    // Listen to changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+    return onAuthStateChanged(auth, async (user) => {
         try {
-            if (session?.user) {
-                const userData = await getCurrentUserData(session.user.id);
+            if (user) {
+                const userData = await getCurrentUserData(user.uid);
                 callback(userData);
             } else {
                 callback(null);
@@ -178,20 +114,11 @@ export const onAuthStateChange = (callback) => {
             callback(null);
         }
     });
-
-    // Return unsubscriber function
-    return () => {
-        subscription.unsubscribe();
-    };
 };
-
 // Send password reset email
 export const sendPasswordReset = async (email) => {
     try {
-        const { error } = await supabase.auth.resetPasswordForEmail(email, {
-            redirectTo: window.location.origin + '/reset-password'
-        });
-        if (error) throw error;
+        await sendPasswordResetEmail(auth, email);
     } catch (error) {
         console.error('Error sending password reset:', error);
         throw error;

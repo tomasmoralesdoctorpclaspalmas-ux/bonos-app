@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { addPunctualIntervention, getEmpresas, getUsers } from '../db';
-import { supabase } from '../supabase';
+import { storage } from '../firebase';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import EmpresaForm from '../components/EmpresaForm';
 import QuickUserForm from '../components/QuickUserForm';
 
@@ -53,6 +54,7 @@ export default function RegisterPunctual() {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        alert("¡Envío Detectado! Procesando asistencia puntual...");
         
         try {
             setLoading(true);
@@ -67,35 +69,19 @@ export default function RegisterPunctual() {
             // Upload images
             const imageUrls = [];
             if (images.length > 0) {
+                alert(`Iniciando subida de ${images.length} imágenes...`);
                 console.log('Starting image uploads...', images.length, 'images');
                 
                 const uploadWithTimeout = (image, timeoutMs = 30000) => {
                     const path = `punctual_interventions/${Date.now()}_${image.name}`;
-                    console.log('Uploading to Supabase path:', path);
-                    
-                    const uploadPromise = (async () => {
-                        const { data, error } = await supabase.storage
-                            .from('evidencias')
-                            .upload(path, image, {
-                                cacheControl: '3600',
-                                upsert: false
-                            });
-                            
-                        if (error) throw error;
-                        
-                        const { data: { publicUrl } } = supabase.storage
-                            .from('evidencias')
-                            .getPublicUrl(path);
-                            
-                        return publicUrl;
-                    })();
-                    
+                    const storageRef = ref(storage, path);
+                    const uploadPromise = uploadBytes(storageRef, image)
+                        .then(() => getDownloadURL(storageRef));
                     const timeoutPromise = new Promise((_, reject) =>
                         setTimeout(() => reject(new Error(
-                            `Timeout al subir "${image.name}" a Supabase Storage.`
+                            `Timeout al subir "${image.name}". Comprueba las reglas de Firebase Storage.`
                         )), timeoutMs)
                     );
-                    
                     return Promise.race([uploadPromise, timeoutPromise]);
                 };
                 
@@ -103,8 +89,9 @@ export default function RegisterPunctual() {
                     try {
                         const url = await uploadWithTimeout(image);
                         imageUrls.push(url);
-                        console.log('Image uploaded successfully:', image.name);
+                        alert(`Imagen "${image.name}" subida con éxito.`);
                     } catch (uploadErr) {
+                        alert(`ERROR CRÍTICO: ${uploadErr.message}`);
                         console.error('Individual image upload failed:', uploadErr);
                         throw new Error(`Error al subir the imagen "${image.name}": ${uploadErr.message}`);
                     }
@@ -126,6 +113,7 @@ export default function RegisterPunctual() {
             navigate('/admin');
         } catch (err) {
             console.error('Error registering punctual intervention:', err);
+            alert("OCURRIÓ UN ERROR: " + err.message);
             setError(err.message || 'Error al registrar la asistencia. Intenta nuevamente.');
         } finally {
             setLoading(false);

@@ -1,146 +1,44 @@
-import { supabase } from './supabase';
-import { v4 as uuidv4 } from 'uuid';
+import {
+    collection,
+    addDoc,
+    getDocs,
+    getDoc,
+    updateDoc,
+    deleteDoc,
+    doc,
+    query,
+    orderBy,
+    where,
+    Timestamp,
+    setDoc
+} from 'firebase/firestore';
+import { db } from './firebase';
 
-// Helper to safely parse numbers
-const safeParseFloat = (val) => {
-    if (val === null || val === undefined) return 0;
-    const p = parseFloat(val);
-    return isNaN(p) ? 0 : p;
-};
-
-// ============ MAPPING HELPERS ============
-
-const mapBonoFromDb = (b) => {
-    if (!b) return null;
-    return {
-        id: b.id,
-        clientId: b.client_id,
-        clientName: b.client_name,
-        service: b.service,
-        hours: safeParseFloat(b.hours),
-        hoursUsed: safeParseFloat(b.hours_used),
-        hoursRemaining: safeParseFloat(b.hours_remaining),
-        status: b.status,
-        neverExpires: b.never_expires,
-        issueDate: b.issue_date,
-        expiryDate: b.expiry_date,
-        notes: b.notes || '',
-        createdAt: b.created_at,
-        updatedAt: b.updated_at
-    };
-};
-
-const mapBonoToDb = (b) => {
-    return {
-        client_id: b.clientId || null,
-        client_name: b.clientName || '',
-        service: b.service || '',
-        hours: safeParseFloat(b.hours),
-        hours_used: safeParseFloat(b.hoursUsed),
-        hours_remaining: safeParseFloat(b.hoursRemaining),
-        status: b.status || 'active',
-        never_expires: b.neverExpires === true,
-        issue_date: b.issueDate ? new Date(b.issueDate).toISOString() : null,
-        expiry_date: b.expiryDate ? new Date(b.expiryDate).toISOString() : null,
-        notes: b.notes || '',
-        updated_at: new Date().toISOString()
-    };
-};
-
-const mapEmpresaFromDb = (e) => {
-    if (!e) return null;
-    return {
-        id: e.id,
-        name: e.name,
-        createdAt: e.created_at,
-        updatedAt: e.updated_at
-    };
-};
-
-const mapUserFromDb = (u) => {
-    if (!u) return null;
-    return {
-        uid: u.id,
-        name: u.name,
-        email: u.email,
-        phone: u.phone || '',
-        role: u.role,
-        companyName: u.company_name || '',
-        empresaId: u.empresa_id || '',
-        createdAt: u.created_at,
-        updatedAt: u.updated_at
-    };
-};
-
-const mapInterventionFromDb = (i) => {
-    if (!i) return null;
-    return {
-        id: i.id,
-        clientId: i.client_id,
-        clientName: i.client_name,
-        bonoId: i.bono_id,
-        hoursUsed: safeParseFloat(i.hours_used),
-        date: i.date,
-        notes: i.notes || '',
-        createdAt: i.created_at,
-        updatedAt: i.updated_at
-    };
-};
-
-const mapInterventionToDb = (i) => {
-    return {
-        client_id: i.clientId || null,
-        client_name: i.clientName || '',
-        bono_id: i.bonoId || null,
-        hours_used: safeParseFloat(i.hoursUsed),
-        date: i.date ? new Date(i.date).toISOString() : new Date().toISOString(),
-        notes: i.notes || ''
-    };
-};
-
-const mapPunctualFromDb = (p) => {
-    if (!p) return null;
-    return {
-        id: p.id,
-        clientId: p.client_id,
-        clientName: p.client_name,
-        hours: safeParseFloat(p.hours),
-        startTime: p.start_time || '',
-        endTime: p.end_time || '',
-        notes: p.notes || '',
-        date: p.date,
-        images: p.images || [],
-        createdAt: p.created_at,
-        updatedAt: p.updated_at
-    };
-};
-
-const mapPunctualToDb = (p) => {
-    return {
-        client_id: p.clientId || null,
-        client_name: p.clientName || '',
-        hours: safeParseFloat(p.hours),
-        start_time: p.startTime || '',
-        end_time: p.endTime || '',
-        notes: p.notes || '',
-        date: p.date ? new Date(p.date).toISOString() : new Date().toISOString(),
-        images: p.images || []
-    };
-};
-
+const BONOS_COLLECTION = 'bonos';
+const USERS_COLLECTION = 'users';
+const INTERVENTIONS_COLLECTION = 'interventions';
+const PUNCTUAL_INTERVENTIONS_COLLECTION = 'punctual_interventions';
+const EMPRESAS_COLLECTION = 'empresas';
 
 // ============ BONOS ============
 
 // Get all bonos
 export const getBonos = async () => {
     try {
-        const { data, error } = await supabase
-            .from('bonos')
-            .select('*')
-            .order('issue_date', { ascending: false });
+        const q = query(collection(db, BONOS_COLLECTION), orderBy('issueDate', 'desc'));
+        const querySnapshot = await getDocs(q);
+        const bonos = [];
 
-        if (error) throw error;
-        return (data || []).map(mapBonoFromDb);
+        querySnapshot.forEach((doc) => {
+            bonos.push({
+                id: doc.id,
+                ...doc.data(),
+                issueDate: doc.data().issueDate?.toDate().toISOString(),
+                expiryDate: doc.data().expiryDate?.toDate().toISOString()
+            });
+        });
+
+        return bonos;
     } catch (error) {
         console.error('Error getting bonos:', error);
         throw error;
@@ -150,14 +48,24 @@ export const getBonos = async () => {
 // Get bonos by client
 export const getBonosByClient = async (clientId) => {
     try {
-        const { data, error } = await supabase
-            .from('bonos')
-            .select('*')
-            .eq('client_id', clientId)
-            .order('issue_date', { ascending: false });
+        const q = query(
+            collection(db, BONOS_COLLECTION),
+            where('clientId', '==', clientId)
+        );
+        const querySnapshot = await getDocs(q);
+        const bonos = [];
 
-        if (error) throw error;
-        return (data || []).map(mapBonoFromDb);
+        querySnapshot.forEach((doc) => {
+            bonos.push({
+                id: doc.id,
+                ...doc.data(),
+                issueDate: doc.data().issueDate?.toDate().toISOString(),
+                expiryDate: doc.data().expiryDate?.toDate().toISOString()
+            });
+        });
+
+        // Sort in client-side to avoid Firestore index requirement
+        return bonos.sort((a, b) => new Date(b.issueDate) - new Date(a.issueDate));
     } catch (error) {
         console.error('Error getting client bonos:', error);
         throw error;
@@ -167,20 +75,16 @@ export const getBonosByClient = async (clientId) => {
 // Add a new bono
 export const addBono = async (bonoData) => {
     try {
-        const id = uuidv4();
-        const dbData = {
-            id,
-            ...mapBonoToDb(bonoData),
-            created_at: new Date().toISOString()
+        const newBono = {
+            ...bonoData,
+            issueDate: Timestamp.fromDate(new Date(bonoData.issueDate)),
+            expiryDate: bonoData.expiryDate ? Timestamp.fromDate(new Date(bonoData.expiryDate)) : null,
+            createdAt: Timestamp.now()
         };
 
-        const { error } = await supabase
-            .from('bonos')
-            .insert([dbData]);
-
-        if (error) throw error;
+        const docRef = await addDoc(collection(db, BONOS_COLLECTION), newBono);
         return {
-            id,
+            id: docRef.id,
             ...bonoData
         };
     } catch (error) {
@@ -192,14 +96,15 @@ export const addBono = async (bonoData) => {
 // Update a bono
 export const updateBono = async (id, bonoData) => {
     try {
-        const dbData = mapBonoToDb(bonoData);
+        const bonoRef = doc(db, BONOS_COLLECTION, id);
+        const updateData = {
+            ...bonoData,
+            issueDate: Timestamp.fromDate(new Date(bonoData.issueDate)),
+            expiryDate: bonoData.expiryDate ? Timestamp.fromDate(new Date(bonoData.expiryDate)) : null,
+            updatedAt: Timestamp.now()
+        };
 
-        const { error } = await supabase
-            .from('bonos')
-            .update(dbData)
-            .eq('id', id);
-
-        if (error) throw error;
+        await updateDoc(bonoRef, updateData);
         return { id, ...bonoData };
     } catch (error) {
         console.error('Error updating bono:', error);
@@ -210,12 +115,7 @@ export const updateBono = async (id, bonoData) => {
 // Delete a bono
 export const deleteBono = async (id) => {
     try {
-        const { error } = await supabase
-            .from('bonos')
-            .delete()
-            .eq('id', id);
-
-        if (error) throw error;
+        await deleteDoc(doc(db, BONOS_COLLECTION, id));
         return id;
     } catch (error) {
         console.error('Error deleting bono:', error);
@@ -226,29 +126,20 @@ export const deleteBono = async (id) => {
 // Update bono hours after intervention
 export const updateBonoHours = async (bonoId, hoursUsed) => {
     try {
-        const { data: bono, error: getError } = await supabase
-            .from('bonos')
-            .select('hours, hours_used, status')
-            .eq('id', bonoId)
-            .single();
+        const bonoRef = doc(db, BONOS_COLLECTION, bonoId);
+        const bonoDoc = await getDoc(bonoRef);
 
-        if (getError) throw getError;
+        if (bonoDoc.exists()) {
+            const currentData = bonoDoc.data();
+            const newHoursUsed = (currentData.hoursUsed || 0) + hoursUsed;
+            const newHoursRemaining = currentData.hours - newHoursUsed;
 
-        if (bono) {
-            const newHoursUsed = safeParseFloat(bono.hours_used) + hoursUsed;
-            const newHoursRemaining = safeParseFloat(bono.hours) - newHoursUsed;
-
-            const { error: updateError } = await supabase
-                .from('bonos')
-                .update({
-                    hours_used: newHoursUsed,
-                    hours_remaining: newHoursRemaining,
-                    status: newHoursRemaining <= 0 ? 'depleted' : bono.status,
-                    updated_at: new Date().toISOString()
-                })
-                .eq('id', bonoId);
-
-            if (updateError) throw updateError;
+            await updateDoc(bonoRef, {
+                hoursUsed: newHoursUsed,
+                hoursRemaining: newHoursRemaining,
+                status: newHoursRemaining <= 0 ? 'depleted' : currentData.status,
+                updatedAt: Timestamp.now()
+            });
         }
     } catch (error) {
         console.error('Error updating bono hours:', error);
@@ -256,42 +147,39 @@ export const updateBonoHours = async (bonoId, hoursUsed) => {
     }
 };
 
-
 // ============ EMPRESAS ============
 
 // Get all empresas
 export const getEmpresas = async () => {
     try {
-        const { data, error } = await supabase
-            .from('empresas')
-            .select('*')
-            .order('name', { ascending: true });
-
-        if (error) throw error;
-        return (data || []).map(mapEmpresaFromDb);
+        // We order by name using client-side sort to avoid requiring a composite index immediately if none exists
+        const querySnapshot = await getDocs(collection(db, EMPRESAS_COLLECTION));
+        const empresas = [];
+        querySnapshot.forEach((doc) => {
+            empresas.push({
+                id: doc.id,
+                ...doc.data()
+            });
+        });
+        return empresas.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
     } catch (error) {
-        console.error('Error getting empresas:', error);
-        return [];
+        console.error('Error getting empresas (puede que falten permisos en Firestore):', error);
+        return []; // Retorna array vacío en vez de romper la app //
     }
 };
 
 // Add empresa
 export const addEmpresa = async (empresaData) => {
     try {
-        const id = uuidv4();
-        const { error } = await supabase
-            .from('empresas')
-            .insert([{
-                id,
-                name: empresaData.name,
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString()
-            }]);
-
-        if (error) throw error;
+        const newEmpresa = {
+            ...empresaData,
+            createdAt: Timestamp.now(),
+            updatedAt: Timestamp.now()
+        };
+        const docRef = await addDoc(collection(db, EMPRESAS_COLLECTION), newEmpresa);
         return {
-            id,
-            ...empresaData
+            id: docRef.id,
+            ...newEmpresa
         };
     } catch (error) {
         console.error('Error adding empresa:', error);
@@ -302,16 +190,13 @@ export const addEmpresa = async (empresaData) => {
 // Update empresa
 export const updateEmpresa = async (id, empresaData) => {
     try {
-        const { error } = await supabase
-            .from('empresas')
-            .update({
-                name: empresaData.name,
-                updated_at: new Date().toISOString()
-            })
-            .eq('id', id);
-
-        if (error) throw error;
-        return { id, ...empresaData };
+        const docRef = doc(db, EMPRESAS_COLLECTION, id);
+        const updateData = {
+            ...empresaData,
+            updatedAt: Timestamp.now()
+        };
+        await updateDoc(docRef, updateData);
+        return { id, ...updateData };
     } catch (error) {
         console.error('Error updating empresa:', error);
         throw error;
@@ -321,12 +206,7 @@ export const updateEmpresa = async (id, empresaData) => {
 // Delete empresa
 export const deleteEmpresa = async (id) => {
     try {
-        const { error } = await supabase
-            .from('empresas')
-            .delete()
-            .eq('id', id);
-
-        if (error) throw error;
+        await deleteDoc(doc(db, EMPRESAS_COLLECTION, id));
         return id;
     } catch (error) {
         console.error('Error deleting empresa:', error);
@@ -334,42 +214,36 @@ export const deleteEmpresa = async (id) => {
     }
 };
 
-
 // ============ USERS ============
 
 // Get all users
 export const getUsers = async () => {
     try {
-        const { data, error } = await supabase
-            .from('users')
-            .select('*');
+        const querySnapshot = await getDocs(collection(db, USERS_COLLECTION));
+        const users = [];
 
-        if (error) throw error;
-        return (data || []).map(mapUserFromDb);
+        querySnapshot.forEach((doc) => {
+            users.push({
+                uid: doc.id,
+                ...doc.data()
+            });
+        });
+
+        return users;
     } catch (error) {
         console.error('Error getting users:', error);
         throw error;
     }
 };
 
-// Add user data (called after Auth creates the user)
+// Add user data (called after Firebase Auth creates the user)
 export const addUserData = async (uid, userData) => {
     try {
-        const { error } = await supabase
-            .from('users')
-            .insert([{
-                id: uid,
-                name: userData.name,
-                email: userData.email,
-                phone: userData.phone || '',
-                role: userData.role || 'client',
-                company_name: userData.companyName || '',
-                empresa_id: userData.empresaId || null,
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString()
-            }]);
-
-        if (error) throw error;
+        await setDoc(doc(db, USERS_COLLECTION, uid), {
+            ...userData,
+            createdAt: Timestamp.now(),
+            updatedAt: Timestamp.now()
+        });
     } catch (error) {
         console.error('Error adding user data:', error);
         throw error;
@@ -379,19 +253,11 @@ export const addUserData = async (uid, userData) => {
 // Update user
 export const updateUser = async (uid, userData) => {
     try {
-        const { error } = await supabase
-            .from('users')
-            .update({
-                name: userData.name,
-                phone: userData.phone || '',
-                role: userData.role,
-                company_name: userData.companyName || '',
-                empresa_id: userData.empresaId || null,
-                updated_at: new Date().toISOString()
-            })
-            .eq('id', uid);
-
-        if (error) throw error;
+        const userRef = doc(db, USERS_COLLECTION, uid);
+        await updateDoc(userRef, {
+            ...userData,
+            updatedAt: Timestamp.now()
+        });
     } catch (error) {
         console.error('Error updating user:', error);
         throw error;
@@ -401,50 +267,58 @@ export const updateUser = async (uid, userData) => {
 // Delete user
 export const deleteUser = async (uid) => {
     try {
-        const { error } = await supabase
-            .from('users')
-            .delete()
-            .eq('id', uid);
-
-        if (error) throw error;
+        await deleteDoc(doc(db, USERS_COLLECTION, uid));
     } catch (error) {
         console.error('Error deleting user:', error);
         throw error;
     }
 };
 
-
 // ============ INTERVENTIONS ============
-
-// Get interventions by client
-export const getInterventionsByClient = async (clientId) => {
-    try {
-        const { data, error } = await supabase
-            .from('interventions')
-            .select('*')
-            .eq('client_id', clientId)
-            .order('date', { ascending: false });
-
-        if (error) throw error;
-        return (data || []).map(mapInterventionFromDb);
-    } catch (error) {
-        console.error('Error getting interventions:', error);
-        throw error;
-    }
-};
 
 // Get all interventions
 export const getInterventions = async () => {
     try {
-        const { data, error } = await supabase
-            .from('interventions')
-            .select('*')
-            .order('date', { ascending: false });
+        const querySnapshot = await getDocs(collection(db, INTERVENTIONS_COLLECTION));
+        const interventions = [];
 
-        if (error) throw error;
-        return (data || []).map(mapInterventionFromDb);
+        querySnapshot.forEach((doc) => {
+            interventions.push({
+                id: doc.id,
+                ...doc.data(),
+                date: doc.data().date?.toDate().toISOString()
+            });
+        });
+
+        return interventions;
     } catch (error) {
         console.error('Error getting all interventions:', error);
+        throw error;
+    }
+};
+
+// Get interventions by client
+export const getInterventionsByClient = async (clientId) => {
+    try {
+        const q = query(
+            collection(db, INTERVENTIONS_COLLECTION),
+            where('clientId', '==', clientId)
+        );
+        const querySnapshot = await getDocs(q);
+        const interventions = [];
+
+        querySnapshot.forEach((doc) => {
+            interventions.push({
+                id: doc.id,
+                ...doc.data(),
+                date: doc.data().date?.toDate().toISOString()
+            });
+        });
+
+        // Sort in client-side to avoid Firestore index requirement
+        return interventions.sort((a, b) => new Date(b.date) - new Date(a.date));
+    } catch (error) {
+        console.error('Error getting interventions:', error);
         throw error;
     }
 };
@@ -452,24 +326,19 @@ export const getInterventions = async () => {
 // Add intervention
 export const addIntervention = async (interventionData) => {
     try {
-        const id = uuidv4();
-        const dbData = {
-            id,
-            ...mapInterventionToDb(interventionData),
-            created_at: new Date().toISOString()
+        const newIntervention = {
+            ...interventionData,
+            date: Timestamp.fromDate(new Date(interventionData.date)),
+            createdAt: Timestamp.now()
         };
 
-        const { error } = await supabase
-            .from('interventions')
-            .insert([dbData]);
-
-        if (error) throw error;
+        const docRef = await addDoc(collection(db, INTERVENTIONS_COLLECTION), newIntervention);
 
         // Update bono hours
         await updateBonoHours(interventionData.bonoId, interventionData.hoursUsed);
 
         return {
-            id,
+            id: docRef.id,
             ...interventionData
         };
     } catch (error) {
@@ -481,56 +350,40 @@ export const addIntervention = async (interventionData) => {
 // Update intervention
 export const updateIntervention = async (id, interventionData) => {
     try {
-        const { data: oldData, error: getError } = await supabase
-            .from('interventions')
-            .select('*')
-            .eq('id', id)
-            .single();
+        const interventionRef = doc(db, INTERVENTIONS_COLLECTION, id);
+        const interventionDoc = await getDoc(interventionRef);
+        
+        if (!interventionDoc.exists()) {
+            throw new Error('Intervention not found');
+        }
 
-        if (getError) throw getError;
-        if (!oldData) throw new Error('Intervention not found');
-
-        const oldHours = safeParseFloat(oldData.hours_used);
-        const newHours = safeParseFloat(interventionData.hoursUsed);
+        const oldData = interventionDoc.data();
+        const oldHours = typeof oldData.hoursUsed === 'number' ? oldData.hoursUsed : 0;
+        const newHours = typeof interventionData.hoursUsed === 'number' ? interventionData.hoursUsed : oldHours;
         const hourDiff = newHours - oldHours;
 
-        if (hourDiff !== 0 && oldData.bono_id) {
-            const { data: bono, error: bonoError } = await supabase
-                .from('bonos')
-                .select('hours_remaining, hours_used')
-                .eq('id', oldData.bono_id)
-                .single();
-
-            if (bonoError) throw bonoError;
-
-            if (bono) {
-                await supabase
-                    .from('bonos')
-                    .update({
-                        hours_remaining: safeParseFloat(bono.hours_remaining) - hourDiff,
-                        hours_used: safeParseFloat(bono.hours_used) + hourDiff,
-                        updated_at: new Date().toISOString()
-                    })
-                    .eq('id', oldData.bono_id);
+        if (hourDiff !== 0 && oldData.bonoId) {
+            const bonoRef = doc(db, BONOS_COLLECTION, oldData.bonoId);
+            const bonoDoc = await getDoc(bonoRef);
+            if (bonoDoc.exists()) {
+                const bonoData = bonoDoc.data();
+                await updateDoc(bonoRef, {
+                    hoursRemaining: bonoData.hoursRemaining - hourDiff,
+                    hoursUsed: (bonoData.hoursUsed || 0) + hourDiff,
+                    updatedAt: Timestamp.now()
+                });
             }
         }
 
-        const dbData = {
-            ...mapInterventionToDb(interventionData),
-            updated_at: new Date().toISOString()
+        const updateData = {
+            ...interventionData,
+            date: interventionData.date ? Timestamp.fromDate(new Date(interventionData.date)) : oldData.date,
+            updatedAt: Timestamp.now()
         };
 
-        const { error: updateError } = await supabase
-            .from('interventions')
-            .update(dbData)
-            .eq('id', id);
-
-        if (updateError) throw updateError;
-
-        return {
-            id,
-            ...mapInterventionFromDb({ ...oldData, ...dbData })
-        };
+        await updateDoc(interventionRef, updateData);
+        // Devolvemos todos los datos combinados para que re-renderice en UI
+        return { id, ...oldData, ...updateData, date: updateData.date.toDate().toISOString() };
     } catch (error) {
         console.error('Error updating intervention:', error);
         throw error;
@@ -542,37 +395,25 @@ export const deleteIntervention = async (id, interventionData) => {
     try {
         // First, restore the hours to the bono
         if (interventionData.bonoId && interventionData.hoursUsed) {
-            const { data: bono, error: bonoError } = await supabase
-                .from('bonos')
-                .select('hours_used, hours_remaining, hours, status')
-                .eq('id', interventionData.bonoId)
-                .single();
+            const bonoRef = doc(db, BONOS_COLLECTION, interventionData.bonoId);
+            const bonoDoc = await getDoc(bonoRef);
 
-            if (bonoError) throw bonoError;
+            if (bonoDoc.exists()) {
+                const currentData = bonoDoc.data();
+                const newHoursUsed = Math.max(0, (currentData.hoursUsed || 0) - interventionData.hoursUsed);
+                const newHoursRemaining = currentData.hours - newHoursUsed;
 
-            if (bono) {
-                const newHoursUsed = Math.max(0, safeParseFloat(bono.hours_used) - interventionData.hoursUsed);
-                const newHoursRemaining = safeParseFloat(bono.hours) - newHoursUsed;
-
-                await supabase
-                    .from('bonos')
-                    .update({
-                        hours_used: newHoursUsed,
-                        hours_remaining: newHoursRemaining,
-                        status: newHoursRemaining > 0 ? 'active' : bono.status,
-                        updated_at: new Date().toISOString()
-                    })
-                    .eq('id', interventionData.bonoId);
+                await updateDoc(bonoRef, {
+                    hoursUsed: newHoursUsed,
+                    hoursRemaining: newHoursRemaining,
+                    status: newHoursRemaining > 0 ? 'active' : currentData.status,
+                    updatedAt: Timestamp.now()
+                });
             }
         }
 
         // Then delete the intervention
-        const { error } = await supabase
-            .from('interventions')
-            .delete()
-            .eq('id', id);
-
-        if (error) throw error;
+        await deleteDoc(doc(db, INTERVENTIONS_COLLECTION, id));
         return id;
     } catch (error) {
         console.error('Error deleting intervention:', error);
@@ -600,19 +441,24 @@ export const checkExpiredBonos = (bonos) => {
     });
 };
 
-
 // ============ PUNCTUAL INTERVENTIONS (No User/Bono) ============
 
 // Get all punctual interventions
 export const getPunctualInterventions = async () => {
     try {
-        const { data, error } = await supabase
-            .from('punctual_interventions')
-            .select('*')
-            .order('date', { ascending: false });
+        const q = query(collection(db, PUNCTUAL_INTERVENTIONS_COLLECTION), orderBy('date', 'desc'));
+        const querySnapshot = await getDocs(q);
+        const interventions = [];
 
-        if (error) throw error;
-        return (data || []).map(mapPunctualFromDb);
+        querySnapshot.forEach((doc) => {
+            interventions.push({
+                id: doc.id,
+                ...doc.data(),
+                date: doc.data().date?.toDate().toISOString()
+            });
+        });
+
+        return interventions;
     } catch (error) {
         console.error('Error getting punctual interventions:', error);
         throw error;
@@ -622,14 +468,22 @@ export const getPunctualInterventions = async () => {
 // Get punctual interventions by client
 export const getPunctualInterventionsByClient = async (clientId) => {
     try {
-        const { data, error } = await supabase
-            .from('punctual_interventions')
-            .select('*')
-            .eq('client_id', clientId)
-            .order('date', { ascending: false });
+        const q = query(
+            collection(db, PUNCTUAL_INTERVENTIONS_COLLECTION),
+            where('clientId', '==', clientId)
+        );
+        const querySnapshot = await getDocs(q);
+        const interventions = [];
 
-        if (error) throw error;
-        return (data || []).map(mapPunctualFromDb);
+        querySnapshot.forEach((doc) => {
+            interventions.push({
+                id: doc.id,
+                ...doc.data(),
+                date: doc.data().date?.toDate().toISOString()
+            });
+        });
+
+        return interventions.sort((a, b) => new Date(b.date) - new Date(a.date));
     } catch (error) {
         console.error('Error getting punctual interventions by client:', error);
         throw error;
@@ -639,20 +493,15 @@ export const getPunctualInterventionsByClient = async (clientId) => {
 // Add punctual intervention
 export const addPunctualIntervention = async (data) => {
     try {
-        const id = uuidv4();
-        const dbData = {
-            id,
-            ...mapPunctualToDb(data),
-            created_at: new Date().toISOString()
+        const newDoc = {
+            ...data,
+            date: Timestamp.fromDate(new Date(data.date)),
+            createdAt: Timestamp.now()
         };
 
-        const { error } = await supabase
-            .from('punctual_interventions')
-            .insert([dbData]);
-
-        if (error) throw error;
+        const docRef = await addDoc(collection(db, PUNCTUAL_INTERVENTIONS_COLLECTION), newDoc);
         return {
-            id,
+            id: docRef.id,
             ...data
         };
     } catch (error) {
@@ -661,25 +510,21 @@ export const addPunctualIntervention = async (data) => {
     }
 };
 
-// Update punctual intervention
+// Update punctual intervention (now supports full fields edits)
 export const updatePunctualIntervention = async (id, data) => {
     try {
-        const dbData = {
-            ...mapPunctualToDb(data),
-            updated_at: new Date().toISOString()
+        const docRef = doc(db, PUNCTUAL_INTERVENTIONS_COLLECTION, id);
+        const updateData = {
+            ...data,
+            updatedAt: Timestamp.now()
         };
-
-        const { error } = await supabase
-            .from('punctual_interventions')
-            .update(dbData)
-            .eq('id', id);
-
-        if (error) throw error;
-
-        return {
-            id,
-            ...data
-        };
+        if (data.date) {
+            updateData.date = Timestamp.fromDate(new Date(data.date));
+        }
+        await updateDoc(docRef, updateData);
+        
+        // Devolvemos el mismo dato de entrada con formato final para actualizar la cache de UI
+        return { id, ...data, date: updateData.date ? updateData.date.toDate().toISOString() : data.date };
     } catch (error) {
         console.error('Error updating punctual intervention:', error);
         throw error;
@@ -689,12 +534,8 @@ export const updatePunctualIntervention = async (id, data) => {
 // Delete punctual intervention
 export const deletePunctualIntervention = async (id) => {
     try {
-        const { error } = await supabase
-            .from('punctual_interventions')
-            .delete()
-            .eq('id', id);
-
-        if (error) throw error;
+        const docRef = doc(db, PUNCTUAL_INTERVENTIONS_COLLECTION, id);
+        await deleteDoc(docRef);
     } catch (error) {
         console.error('Error deleting punctual intervention:', error);
         throw error;

@@ -1,5 +1,8 @@
-import { createUserAccount, loginUser, getCurrentUserData } from './auth';
-import { supabase } from './supabase';
+import { createUserAccount, auth } from './auth';
+import { signInWithEmailAndPassword } from 'firebase/auth';
+import { doc, setDoc } from 'firebase/firestore';
+import { db } from './firebase';
+import { addUserData } from './db';
 
 // Credenciales del administrador por defecto
 const DEFAULT_ADMIN = {
@@ -15,7 +18,7 @@ const DEFAULT_ADMIN = {
 
 export const initializeDefaultAdmin = async () => {
     try {
-        console.log('🔧 Inicializando administrador en Supabase por defecto...');
+        console.log('🔧 Inicializando administrador por defecto...');
         console.log('📧 Email:', DEFAULT_ADMIN.email);
         console.log('🔑 Contraseña:', DEFAULT_ADMIN.password);
 
@@ -27,40 +30,40 @@ export const initializeDefaultAdmin = async () => {
 
         console.log('✅ Administrador creado exitosamente!');
         console.log('UID:', uid);
+        console.log('\n📝 Guarda estas credenciales:');
+        console.log('   Email:', DEFAULT_ADMIN.email);
+        console.log('   Contraseña:', DEFAULT_ADMIN.password);
 
         return true;
     } catch (error) {
-        // En Supabase, si el email ya existe, el mensaje de error o código indicará que el usuario ya existe
-        console.log('ℹ️ Intentando restaurar datos de administrador en la tabla de perfiles...');
-        try {
-            // 1. Iniciar sesión para verificar credenciales y obtener el perfil
-            const userData = await loginUser(
-                DEFAULT_ADMIN.email,
-                DEFAULT_ADMIN.password
-            );
-            const uid = userData.uid;
+        if (error.code === 'auth/email-already-in-use') {
+            console.log('ℹ️  El usuario Auth ya existe. Intentando restaurar datos en Firestore...');
+            try {
+                // 1. Iniciar sesión para obtener UID
+                const userCredential = await signInWithEmailAndPassword(
+                    auth,
+                    DEFAULT_ADMIN.email,
+                    DEFAULT_ADMIN.password
+                );
+                const uid = userCredential.user.uid;
 
-            // 2. Asegurar que existen los datos en la tabla de usuarios
-            const { error: setProfileError } = await supabase
-                .from('users')
-                .upsert({
-                    id: uid,
-                    name: DEFAULT_ADMIN.userData.name,
+                // 2. Asegurar que existen los datos en Firestore
+                await setDoc(doc(db, 'users', uid), {
+                    ...DEFAULT_ADMIN.userData,
                     email: DEFAULT_ADMIN.email,
-                    phone: DEFAULT_ADMIN.userData.phone || '',
-                    role: DEFAULT_ADMIN.userData.role || 'admin',
-                    company_name: DEFAULT_ADMIN.userData.companyName || '',
-                    updated_at: new Date().toISOString()
-                }, { onConflict: 'id' });
+                    updatedAt: new Date().toISOString()
+                }, { merge: true });
 
-            if (setProfileError) throw setProfileError;
-
-            console.log('✅ Datos de administrador restaurados correctamente en la base de datos.');
-            return true;
-        } catch (recoveryError) {
-            console.error('❌ Error al intentar recuperar el admin:', recoveryError);
-            throw recoveryError;
+                console.log('✅ Datos de administrador restaurados correctamente.');
+                return true;
+            } catch (recoveryError) {
+                console.error('❌ Error al intentar recuperar el admin:', recoveryError);
+                throw recoveryError; // Re-lanzar para que el botón de la UI muestre el error
+            }
         }
+
+        console.error('❌ Error al crear administrador:', error.message);
+        return false;
     }
 };
 
