@@ -13,28 +13,31 @@ export default function ResumenHoras({ users = [], empresas = [], interventions 
             const companyUsers = users.filter(u => u.empresaId === emp.id);
             const userIds = companyUsers.map(u => u.uid);
 
-            const companyInterventions = interventions.filter(i => {
-                if (!i.clientName) return i.clientId === emp.id || userIds.includes(i.clientId);
-                const clientNameClean = i.clientName.toLowerCase().trim();
-                const empNameClean = emp.name.toLowerCase().trim();
-                return (
-                    i.clientId === emp.id ||
-                    userIds.includes(i.clientId) ||
-                    clientNameClean === empNameClean ||
-                    (clientNameClean.length >= 4 && empNameClean.includes(clientNameClean))
-                );
-            });
-            const companyPunctuals = punctualInterventions.filter(p => {
-                if (!p.clientName) return p.clientId === emp.id || userIds.includes(p.clientId);
-                const clientNameClean = p.clientName.toLowerCase().trim();
-                const empNameClean = emp.name.toLowerCase().trim();
-                return (
-                    p.clientId === emp.id ||
-                    userIds.includes(p.clientId) ||
-                    clientNameClean === empNameClean ||
-                    (clientNameClean.length >= 4 && empNameClean.includes(clientNameClean))
-                );
-            });
+            const matchesCompany = (item) => {
+                if (item.clientId === emp.id) return true;
+                if (userIds.includes(item.clientId)) return true;
+                if (item.clientName) {
+                    const clientNameClean = item.clientName.toLowerCase().trim();
+                    const empNameClean = emp.name.toLowerCase().trim();
+                    if (clientNameClean === empNameClean || (clientNameClean.length >= 4 && empNameClean.includes(clientNameClean))) {
+                        return true;
+                    }
+                    if (companyUsers.some(u => {
+                        const userNameClean = u.name.toLowerCase().trim();
+                        return (
+                            clientNameClean === userNameClean ||
+                            (clientNameClean.length >= 4 && userNameClean.includes(clientNameClean)) ||
+                            (userNameClean.length >= 4 && clientNameClean.includes(userNameClean))
+                        );
+                    })) {
+                        return true;
+                    }
+                }
+                return false;
+            };
+
+            const companyInterventions = interventions.filter(matchesCompany);
+            const companyPunctuals = punctualInterventions.filter(matchesCompany);
 
             const allInterventions = [
                 ...companyInterventions.map(i => ({ ...i, type: 'bono', hours: i.hoursUsed })),
