@@ -13,8 +13,28 @@ export default function ResumenHoras({ users = [], empresas = [], interventions 
             const companyUsers = users.filter(u => u.empresaId === emp.id);
             const userIds = companyUsers.map(u => u.uid);
 
-            const companyInterventions = interventions.filter(i => i.clientId === emp.id || userIds.includes(i.clientId));
-            const companyPunctuals = punctualInterventions.filter(p => p.clientId === emp.id || userIds.includes(p.clientId));
+            const companyInterventions = interventions.filter(i => {
+                if (!i.clientName) return i.clientId === emp.id || userIds.includes(i.clientId);
+                const clientNameClean = i.clientName.toLowerCase().trim();
+                const empNameClean = emp.name.toLowerCase().trim();
+                return (
+                    i.clientId === emp.id ||
+                    userIds.includes(i.clientId) ||
+                    clientNameClean === empNameClean ||
+                    (clientNameClean.length >= 4 && empNameClean.includes(clientNameClean))
+                );
+            });
+            const companyPunctuals = punctualInterventions.filter(p => {
+                if (!p.clientName) return p.clientId === emp.id || userIds.includes(p.clientId);
+                const clientNameClean = p.clientName.toLowerCase().trim();
+                const empNameClean = emp.name.toLowerCase().trim();
+                return (
+                    p.clientId === emp.id ||
+                    userIds.includes(p.clientId) ||
+                    clientNameClean === empNameClean ||
+                    (clientNameClean.length >= 4 && empNameClean.includes(clientNameClean))
+                );
+            });
 
             const allInterventions = [
                 ...companyInterventions.map(i => ({ ...i, type: 'bono', hours: i.hoursUsed })),
@@ -35,8 +55,26 @@ export default function ResumenHoras({ users = [], empresas = [], interventions 
 
     const getClientSummary = () => {
         return users.map(user => {
-            const clientInterventions = interventions.filter(i => i.clientId === user.uid);
-            const clientPunctuals = punctualInterventions.filter(p => p.clientId === user.uid);
+            const clientInterventions = interventions.filter(i => {
+                if (!i.clientName) return i.clientId === user.uid;
+                const clientNameClean = i.clientName.toLowerCase().trim();
+                const userNameClean = user.name.toLowerCase().trim();
+                return (
+                    i.clientId === user.uid ||
+                    clientNameClean === userNameClean ||
+                    (clientNameClean.length >= 4 && userNameClean.includes(clientNameClean))
+                );
+            });
+            const clientPunctuals = punctualInterventions.filter(p => {
+                if (!p.clientName) return p.clientId === user.uid;
+                const clientNameClean = p.clientName.toLowerCase().trim();
+                const userNameClean = user.name.toLowerCase().trim();
+                return (
+                    p.clientId === user.uid ||
+                    clientNameClean === userNameClean ||
+                    (clientNameClean.length >= 4 && userNameClean.includes(clientNameClean))
+                );
+            });
 
             const allInterventions = [
                 ...clientInterventions.map(i => ({ ...i, type: 'bono', hours: i.hoursUsed })),
