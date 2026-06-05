@@ -13,8 +13,8 @@ export default function ResumenHoras({ users = [], empresas = [], interventions 
             const companyUsers = users.filter(u => u.empresaId === emp.id);
             const userIds = companyUsers.map(u => u.uid);
 
-            const companyInterventions = interventions.filter(i => userIds.includes(i.clientId));
-            const companyPunctuals = punctualInterventions.filter(p => userIds.includes(p.clientId));
+            const companyInterventions = interventions.filter(i => i.clientId === emp.id || userIds.includes(i.clientId));
+            const companyPunctuals = punctualInterventions.filter(p => p.clientId === emp.id || userIds.includes(p.clientId));
 
             const allInterventions = [
                 ...companyInterventions.map(i => ({ ...i, type: 'bono', hours: i.hoursUsed })),
