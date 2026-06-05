@@ -3,7 +3,6 @@ import ReactDOM from 'react-dom/client'
 import App from './App'
 import './index.css'
 
-alert("PUNTO DE ENTRADA MAIN.JSX CARGADO (VERSIÓN 2.0)");
 import { initializeDefaultAdmin } from './initAdmin'
 import { ErrorBoundary } from './components/ErrorBoundary'
 

@@ -8,7 +8,8 @@ import BonoCard from '../components/BonoCard';
 import ClientHistory from '../components/ClientHistory';
 import EmpresaForm from '../components/EmpresaForm';
 import QuickUserForm from '../components/QuickUserForm';
-import { getBonos, addBono, updateBono, deleteBono, checkExpiredBonos, getPunctualInterventions, updatePunctualIntervention, deletePunctualIntervention } from '../db';
+import ResumenHoras from '../components/ResumenHoras';
+import { getBonos, addBono, updateBono, deleteBono, checkExpiredBonos, getPunctualInterventions, updatePunctualIntervention, deletePunctualIntervention, getInterventions, getUsers, getEmpresas } from '../db';
 import InterventionEditModal from '../components/InterventionEditModal';
 
 export default function AdminDashboard() {
@@ -24,6 +25,9 @@ export default function AdminDashboard() {
     const [viewHistoryClient, setViewHistoryClient] = useState(null);
     const [punctualInterventions, setPunctualInterventions] = useState([]);
     const [editingPunctual, setEditingPunctual] = useState(null);
+    const [users, setUsers] = useState([]);
+    const [empresas, setEmpresas] = useState([]);
+    const [interventions, setInterventions] = useState([]);
 
     const { logout, currentUser } = useAuth();
     const navigate = useNavigate();
@@ -37,18 +41,24 @@ export default function AdminDashboard() {
             setLoading(true);
             setError(null);
 
-            // Load bonos and punctual interventions in parallel
-            const [bonosData, punctualData] = await Promise.all([
+            // Load all data in parallel
+            const [bonosData, punctualData, interventionsData, usersData, empresasData] = await Promise.all([
                 getBonos(),
-                getPunctualInterventions()
+                getPunctualInterventions(),
+                getInterventions().catch(() => []),
+                getUsers().catch(() => []),
+                getEmpresas().catch(() => [])
             ]);
 
             const updatedBonos = checkExpiredBonos(bonosData);
             setBonos(updatedBonos);
             setPunctualInterventions(punctualData);
+            setInterventions(interventionsData);
+            setUsers(usersData);
+            setEmpresas(empresasData);
         } catch (err) {
             console.error('Error loading data:', err);
-            setError('Error al cargar la información. Verifica tu configuración de Firebase.');
+            setError('Error al cargar la información. Verifica tu configuración de Supabase.');
         } finally {
             setLoading(false);
         }
@@ -320,13 +330,14 @@ export default function AdminDashboard() {
                         { value: 'active', label: 'Activos', icon: '✅' },
                         { value: 'depleted', label: 'Agotados', icon: '⚠️' },
                         { value: 'expired', label: 'Expirados', icon: '⏰' },
-                        { value: 'punctual', label: 'Puntuales', icon: '⚡' }
+                        { value: 'punctual', label: 'Puntuales', icon: '⚡' },
+                        { value: 'resumen', label: 'Control de Horas', icon: '⏱️' }
                     ].map(({ value, label, icon }) => (
                         <button
                             key={value}
                             onClick={() => setFilter(value)}
                             className={`px-4 py-2 rounded-lg font-semibold transition-all ${filter === value
-                                ? (value === 'punctual' ? 'bg-orange-600 text-white shadow-lg' : 'bg-blue-600 text-white shadow-lg')
+                                ? (value === 'punctual' ? 'bg-orange-600 text-white shadow-lg' : value === 'resumen' ? 'bg-teal-600 text-white shadow-lg' : 'bg-blue-600 text-white shadow-lg')
                                 : 'bg-white text-gray-700 hover:bg-gray-100'
                                 }`}
                         >
@@ -335,8 +346,15 @@ export default function AdminDashboard() {
                     ))}
                 </div>
 
-                {/* Bonos List or Punctual History */}
-                {filter === 'punctual' ? (
+                {/* Bonos List, Punctual History, or Resumen de Horas */}
+                {filter === 'resumen' ? (
+                    <ResumenHoras
+                        users={users}
+                        empresas={empresas}
+                        interventions={interventions}
+                        punctualInterventions={punctualInterventions}
+                    />
+                ) : filter === 'punctual' ? (
                     <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
                         <div className="overflow-x-auto">
                             <table className="min-w-full divide-y divide-gray-200">
