@@ -21,7 +21,6 @@ export default function RegisterIntervention() {
     const [error, setError] = useState(null);
 
     useEffect(() => {
-        alert("COMPONENTE REGISTER_INTERVENTION CARGADO (VERSIÓN ALERTA)");
         loadClients();
     }, []);
 
@@ -82,7 +81,6 @@ export default function RegisterIntervention() {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        alert("¡Código de enviado detectado! Procesando...");
         
         try {
             setLoading(true);
@@ -108,7 +106,6 @@ export default function RegisterIntervention() {
             // Upload images
             const imageUrls = [];
             if (images.length > 0) {
-                alert(`Iniciando subida de ${images.length} imágenes...`);
                 console.log('Starting image uploads...', images.length, 'images');
                 
                 const uploadWithTimeout = (image, timeoutMs = 30000) => {
@@ -132,10 +129,8 @@ export default function RegisterIntervention() {
                     try {
                         const url = await uploadWithTimeout(image);
                         imageUrls.push(url);
-                        alert(`Imagen "${image.name}" subida con éxito.`);
-                        console.log('Image uploaded successfully');
+                        console.log('Image uploaded successfully:', image.name);
                     } catch (uploadErr) {
-                        alert(`ERROR CRÍTICO: ${uploadErr.message}`);
                         console.error('Individual image upload failed:', uploadErr);
                         throw new Error(`Error al subir la imagen "${image.name}": ${uploadErr.message}`);
                     }
@@ -160,7 +155,6 @@ export default function RegisterIntervention() {
             navigate('/admin');
         } catch (err) {
             console.error('Error registering intervention:', err);
-            alert("OCURRIÓ UN ERROR: " + err.message);
             setError(err.message || 'Error al registrar la asistencia. Intenta nuevamente.');
         } finally {
             setLoading(false);

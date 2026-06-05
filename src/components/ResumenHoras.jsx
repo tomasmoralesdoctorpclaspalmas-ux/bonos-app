@@ -1,56 +1,113 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-export default function ResumenHoras({ users = [], empresas = [], interventions = [], punctualInterventions = [] }) {
+// ─── helpers ────────────────────────────────────────────────────────────────
+
+const toNum = (v) => {
+    const n = parseFloat(v);
+    return isNaN(n) ? 0 : n;
+};
+
+const normalize = (s) => (s || '').toLowerCase().trim();
+
+/**
+ * Returns true when two name strings are "close enough" to be the same entity.
+ * We require at least 4 chars to avoid false positives on short words.
+ */
+const nameMatch = (a, b) => {
+    const na = normalize(a);
+    const nb = normalize(b);
+    if (!na || !nb) return false;
+    if (na === nb) return true;
+    if (na.length >= 4 && nb.includes(na)) return true;
+    if (nb.length >= 4 && na.includes(nb)) return true;
+    return false;
+};
+
+// ─── main component ─────────────────────────────────────────────────────────
+
+export default function ResumenHoras({
+    users = [],
+    empresas = [],
+    interventions = [],        // bono-based (clientId = empresa ID)
+    punctualInterventions = [] // direct (clientId = empresa ID or user UID, or empty)
+}) {
     const [groupBy, setGroupBy] = useState('empresa'); // 'empresa' | 'cliente'
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedItemId, setSelectedItemId] = useState(null);
     const [checkedInterventions, setCheckedInterventions] = useState({});
 
-    // Processing data
+    // ── matching helpers ────────────────────────────────────────────────────
+
+    /**
+     * Does this intervention/punctual record belong to a given empresa?
+     *
+     * Priority:
+     *  1. clientId matches empresa ID directly
+     *  2. clientId matches one of the empresa's users' UIDs
+     *  3. clientName matches empresa name (fuzzy)
+     *  4. clientName matches one of the empresa's users' names (fuzzy)
+     */
+    const belongsToEmpresa = (item, emp, companyUsers) => {
+        // 1. Direct match by empresa ID
+        if (item.clientId && item.clientId === emp.id) return true;
+
+        // 2. Match via one of empresa's users
+        if (item.clientId && companyUsers.some(u => u.uid === item.clientId)) return true;
+
+        // 3. Name-based fallback
+        const clientName = item.clientName || '';
+        if (nameMatch(clientName, emp.name)) return true;
+
+        // 4. Match name against empresa users
+        if (companyUsers.some(u => nameMatch(clientName, u.name))) return true;
+
+        return false;
+    };
+
+    /**
+     * Does this record belong to a given user (individual client)?
+     */
+    const belongsToUser = (item, user) => {
+        if (item.clientId && item.clientId === user.uid) return true;
+        const clientName = item.clientName || '';
+        if (nameMatch(clientName, user.name)) return true;
+        return false;
+    };
+
+    // ── summary builders ────────────────────────────────────────────────────
+
     const getCompanySummary = () => {
         return empresas.map(emp => {
             const companyUsers = users.filter(u => u.empresaId === emp.id);
-            const userIds = companyUsers.map(u => u.uid);
 
-            const matchesCompany = (item) => {
-                if (item.clientId === emp.id) return true;
-                if (userIds.includes(item.clientId)) return true;
-                if (item.clientName) {
-                    const clientNameClean = item.clientName.toLowerCase().trim();
-                    const empNameClean = emp.name.toLowerCase().trim();
-                    if (clientNameClean === empNameClean || (clientNameClean.length >= 4 && empNameClean.includes(clientNameClean))) {
-                        return true;
-                    }
-                    if (companyUsers.some(u => {
-                        const userNameClean = u.name.toLowerCase().trim();
-                        return (
-                            clientNameClean === userNameClean ||
-                            (clientNameClean.length >= 4 && userNameClean.includes(clientNameClean)) ||
-                            (userNameClean.length >= 4 && clientNameClean.includes(userNameClean))
-                        );
-                    })) {
-                        return true;
-                    }
-                }
-                return false;
-            };
+            const companyInterventions = interventions.filter(i =>
+                belongsToEmpresa(i, emp, companyUsers)
+            );
+            const companyPunctuals = punctualInterventions.filter(p =>
+                belongsToEmpresa(p, emp, companyUsers)
+            );
 
-            const companyInterventions = interventions.filter(matchesCompany);
-            const companyPunctuals = punctualInterventions.filter(matchesCompany);
-
-            const allInterventions = [
-                ...companyInterventions.map(i => ({ ...i, type: 'bono', hours: i.hoursUsed })),
-                ...companyPunctuals.map(p => ({ ...p, type: 'puntual', hours: p.hours }))
+            const allItems = [
+                ...companyInterventions.map(i => ({
+                    ...i,
+                    type: 'bono',
+                    hours: toNum(i.hoursUsed)
+                })),
+                ...companyPunctuals.map(p => ({
+                    ...p,
+                    type: 'puntual',
+                    hours: toNum(p.hours)
+                }))
             ].sort((a, b) => new Date(b.date) - new Date(a.date));
 
-            const totalHours = allInterventions.reduce((sum, item) => sum + item.hours, 0);
+            const totalHours = allItems.reduce((sum, item) => sum + item.hours, 0);
 
             return {
                 id: emp.id,
                 name: emp.name,
                 totalHours,
-                interventions: allInterventions,
+                interventions: allItems,
                 clientsCount: companyUsers.length
             };
         }).sort((a, b) => b.totalHours - a.totalHours);
@@ -58,40 +115,36 @@ export default function ResumenHoras({ users = [], empresas = [], interventions 
 
     const getClientSummary = () => {
         return users.map(user => {
-            const clientInterventions = interventions.filter(i => {
-                if (!i.clientName) return i.clientId === user.uid;
-                const clientNameClean = i.clientName.toLowerCase().trim();
-                const userNameClean = user.name.toLowerCase().trim();
-                return (
-                    i.clientId === user.uid ||
-                    clientNameClean === userNameClean ||
-                    (clientNameClean.length >= 4 && userNameClean.includes(clientNameClean))
-                );
-            });
-            const clientPunctuals = punctualInterventions.filter(p => {
-                if (!p.clientName) return p.clientId === user.uid;
-                const clientNameClean = p.clientName.toLowerCase().trim();
-                const userNameClean = user.name.toLowerCase().trim();
-                return (
-                    p.clientId === user.uid ||
-                    clientNameClean === userNameClean ||
-                    (clientNameClean.length >= 4 && userNameClean.includes(clientNameClean))
-                );
-            });
+            const clientInterventions = interventions.filter(i =>
+                belongsToUser(i, user)
+            );
+            const clientPunctuals = punctualInterventions.filter(p =>
+                belongsToUser(p, user)
+            );
 
-            const allInterventions = [
-                ...clientInterventions.map(i => ({ ...i, type: 'bono', hours: i.hoursUsed })),
-                ...clientPunctuals.map(p => ({ ...p, type: 'puntual', hours: p.hours }))
+            const allItems = [
+                ...clientInterventions.map(i => ({
+                    ...i,
+                    type: 'bono',
+                    hours: toNum(i.hoursUsed)
+                })),
+                ...clientPunctuals.map(p => ({
+                    ...p,
+                    type: 'puntual',
+                    hours: toNum(p.hours)
+                }))
             ].sort((a, b) => new Date(b.date) - new Date(a.date));
 
-            const totalHours = allInterventions.reduce((sum, item) => sum + item.hours, 0);
+            const totalHours = allItems.reduce((sum, item) => sum + item.hours, 0);
+
+            const empresa = empresas.find(e => e.id === user.empresaId);
 
             return {
                 id: user.uid,
                 name: user.name,
-                companyName: user.companyName || 'Particular',
+                companyName: empresa?.name || user.companyName || 'Particular',
                 totalHours,
-                interventions: allInterventions
+                interventions: allItems
             };
         }).sort((a, b) => b.totalHours - a.totalHours);
     };
@@ -105,38 +158,29 @@ export default function ResumenHoras({ users = [], empresas = [], interventions 
 
     const selectedItem = summaries.find(item => item.id === selectedItemId);
 
-    // Initialize checkboxes for selected company/client when opened
+    // ── checkbox helpers ────────────────────────────────────────────────────
+
     useEffect(() => {
         if (selectedItem) {
-            const initialChecked = {};
-            selectedItem.interventions.forEach(item => {
-                initialChecked[item.id] = true; // checked by default
-            });
-            setCheckedInterventions(initialChecked);
+            const initial = {};
+            selectedItem.interventions.forEach(item => { initial[item.id] = true; });
+            setCheckedInterventions(initial);
         } else {
             setCheckedInterventions({});
         }
     }, [selectedItemId]);
 
-    // Handle check toggle
     const handleCheckToggle = (id) => {
-        setCheckedInterventions(prev => ({
-            ...prev,
-            [id]: !prev[id]
-        }));
+        setCheckedInterventions(prev => ({ ...prev, [id]: !prev[id] }));
     };
 
-    // Toggle all
     const handleToggleAll = (checked) => {
         if (!selectedItem) return;
         const updated = {};
-        selectedItem.interventions.forEach(item => {
-            updated[item.id] = checked;
-        });
+        selectedItem.interventions.forEach(item => { updated[item.id] = checked; });
         setCheckedInterventions(updated);
     };
 
-    // Calculate sum of checked hours
     const getCheckedHours = () => {
         if (!selectedItem) return 0;
         return selectedItem.interventions
@@ -146,17 +190,21 @@ export default function ResumenHoras({ users = [], empresas = [], interventions 
 
     const totalSelectedHours = getCheckedHours();
     const allCheckedCount = selectedItem ? selectedItem.interventions.length : 0;
-    const checkedCount = selectedItem ? selectedItem.interventions.filter(item => checkedInterventions[item.id]).length : 0;
+    const checkedCount = selectedItem
+        ? selectedItem.interventions.filter(item => checkedInterventions[item.id]).length
+        : 0;
+
+    // ── render ──────────────────────────────────────────────────────────────
 
     return (
         <div className="space-y-8">
             {/* Header controls */}
-            <div className="bg-white rounded-2xl shadow-xl p-6 border border-gray-100/80 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div className="bg-white rounded-2xl shadow-xl p-5 border border-gray-100/80 flex flex-col md:flex-row justify-between items-center gap-4">
                 {/* Agrupación selector */}
                 <div className="flex bg-gray-100 p-1.5 rounded-xl w-full md:w-auto">
                     <button
                         onClick={() => { setGroupBy('empresa'); setSelectedItemId(null); }}
-                        className={`flex-1 md:flex-none px-6 py-2.5 rounded-lg font-bold text-sm transition-all ${groupBy === 'empresa'
+                        className={`flex-1 md:flex-none px-5 py-2 rounded-lg font-bold text-sm transition-all ${groupBy === 'empresa'
                             ? 'bg-blue-600 text-white shadow-md'
                             : 'text-gray-600 hover:text-gray-900'
                             }`}
@@ -165,7 +213,7 @@ export default function ResumenHoras({ users = [], empresas = [], interventions 
                     </button>
                     <button
                         onClick={() => { setGroupBy('cliente'); setSelectedItemId(null); }}
-                        className={`flex-1 md:flex-none px-6 py-2.5 rounded-lg font-bold text-sm transition-all ${groupBy === 'cliente'
+                        className={`flex-1 md:flex-none px-5 py-2 rounded-lg font-bold text-sm transition-all ${groupBy === 'cliente'
                             ? 'bg-blue-600 text-white shadow-md'
                             : 'text-gray-600 hover:text-gray-900'
                             }`}
@@ -175,10 +223,8 @@ export default function ResumenHoras({ users = [], empresas = [], interventions 
                 </div>
 
                 {/* Buscador */}
-                <div className="relative w-full md:w-80">
-                    <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-400">
-                        🔍
-                    </span>
+                <div className="relative w-full md:w-72">
+                    <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-400">🔍</span>
                     <input
                         type="text"
                         placeholder={groupBy === 'empresa' ? 'Buscar empresa...' : 'Buscar cliente...'}
@@ -189,88 +235,87 @@ export default function ResumenHoras({ users = [], empresas = [], interventions 
                 </div>
             </div>
 
-            {/* main Layout */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-                {/* List Summary */}
-                <div className={`col-span-1 lg:col-span-6 space-y-4`}>
+            {/* Main Layout */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+                {/* ── Summary Table ─────────────────────────────────────── */}
+                <div className="col-span-1 lg:col-span-5 space-y-3">
                     <h2 className="text-xl font-extrabold text-gray-900 flex items-center gap-2">
                         <span>📊</span> Resumen de Horas de Asistencias
                     </h2>
 
                     <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
-                        <div className="overflow-x-auto">
-                            <table className="min-w-full divide-y divide-gray-200">
-                                <thead className="bg-blue-50/50">
+                        <table className="w-full">
+                            <thead className="bg-blue-50/70">
+                                <tr>
+                                    <th className="px-4 py-3 text-left text-xs font-bold text-blue-900 uppercase tracking-wide w-1/2">
+                                        {groupBy === 'empresa' ? 'Empresa' : 'Cliente'}
+                                    </th>
+                                    <th className="px-3 py-3 text-center text-xs font-bold text-blue-900 uppercase tracking-wide w-1/6">
+                                        {groupBy === 'empresa' ? 'Clientes' : 'Empresa'}
+                                    </th>
+                                    <th className="px-3 py-3 text-center text-xs font-bold text-blue-900 uppercase tracking-wide w-1/6">
+                                        Asist.
+                                    </th>
+                                    <th className="px-3 py-3 text-right text-xs font-bold text-blue-900 uppercase tracking-wide w-1/6">
+                                        Horas
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                                {filteredSummaries.length === 0 ? (
                                     <tr>
-                                        <th className="px-6 py-4 text-left text-xs font-bold text-blue-900 uppercase tracking-wider">
-                                            {groupBy === 'empresa' ? 'Empresa' : 'Cliente'}
-                                        </th>
-                                        <th className="px-6 py-4 text-center text-xs font-bold text-blue-900 uppercase tracking-wider">
-                                            {groupBy === 'empresa' ? 'Clientes' : 'Empresa'}
-                                        </th>
-                                        <th className="px-6 py-4 text-center text-xs font-bold text-blue-900 uppercase tracking-wider">
-                                            Asistencias
-                                        </th>
-                                        <th className="px-6 py-4 text-right text-xs font-bold text-blue-900 uppercase tracking-wider">
-                                            Horas Totales
-                                        </th>
+                                        <td colSpan="4" className="px-4 py-10 text-center text-gray-500 italic text-sm">
+                                            No hay resultados que coincidan.
+                                        </td>
                                     </tr>
-                                </thead>
-                                <tbody className="divide-y divide-gray-150">
-                                    {filteredSummaries.length === 0 ? (
-                                        <tr>
-                                            <td colSpan="4" className="px-6 py-10 text-center text-gray-500 italic">
-                                                No hay resultados que coincidan con la búsqueda.
+                                ) : (
+                                    filteredSummaries.map((item) => (
+                                        <tr
+                                            key={item.id}
+                                            onClick={() => setSelectedItemId(item.id)}
+                                            className={`cursor-pointer transition-colors ${selectedItemId === item.id
+                                                ? 'bg-blue-50/80'
+                                                : 'hover:bg-gray-50'
+                                                }`}
+                                        >
+                                            <td className="px-4 py-3">
+                                                <div className="text-sm font-semibold text-gray-900 flex items-center gap-1.5 truncate max-w-[180px]">
+                                                    <span className="shrink-0">{groupBy === 'empresa' ? '🏢' : '👤'}</span>
+                                                    <span className="truncate">{item.name}</span>
+                                                </div>
+                                            </td>
+                                            <td className="px-3 py-3 text-center">
+                                                {groupBy === 'empresa' ? (
+                                                    <span className="bg-gray-100 px-2 py-0.5 rounded text-xs font-semibold text-gray-600">
+                                                        {item.clientsCount}
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-xs text-gray-500 truncate max-w-[90px] inline-block">
+                                                        {item.companyName}
+                                                    </span>
+                                                )}
+                                            </td>
+                                            <td className="px-3 py-3 text-center">
+                                                <span className="bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full text-xs font-bold">
+                                                    {item.interventions.length}
+                                                </span>
+                                            </td>
+                                            <td className="px-3 py-3 text-right">
+                                                <span className="bg-blue-100 text-blue-800 font-extrabold px-2.5 py-1 rounded-lg text-xs">
+                                                    {item.totalHours}h
+                                                </span>
                                             </td>
                                         </tr>
-                                    ) : (
-                                        filteredSummaries.map((item) => (
-                                            <tr
-                                                key={item.id}
-                                                onClick={() => setSelectedItemId(item.id)}
-                                                className={`cursor-pointer transition-colors ${selectedItemId === item.id
-                                                    ? 'bg-blue-50/80 hover:bg-blue-50'
-                                                    : 'hover:bg-gray-50'
-                                                    }`}
-                                            >
-                                                <td className="px-6 py-4 whitespace-nowrap">
-                                                    <div className="text-sm font-semibold text-gray-900 flex items-center gap-2">
-                                                        <span>{groupBy === 'empresa' ? '🏢' : '👤'}</span>
-                                                        {item.name}
-                                                    </div>
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-center text-gray-500">
-                                                    {groupBy === 'empresa' ? (
-                                                        <span className="bg-gray-100 px-2 py-1 rounded text-xs font-semibold">
-                                                            {item.clientsCount} {item.clientsCount === 1 ? 'cliente' : 'clientes'}
-                                                        </span>
-                                                    ) : (
-                                                        <span className="truncate max-w-[120px] inline-block">
-                                                            {item.companyName}
-                                                        </span>
-                                                    )}
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-center">
-                                                    <span className="bg-gray-100 text-gray-750 px-2.5 py-1 rounded-full text-xs font-bold">
-                                                        {item.interventions.length} {item.interventions.length === 1 ? 'asist.' : 'asist.'}
-                                                    </span>
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
-                                                    <span className="bg-blue-150 text-blue-800 font-extrabold px-3 py-1.5 rounded-lg text-xs">
-                                                        {item.totalHours} hrs
-                                                    </span>
-                                                </td>
-                                            </tr>
-                                        ))
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
+                                    ))
+                                )}
+                            </tbody>
+                        </table>
                     </div>
                 </div>
 
-                {/* Details / Interactive Calculator */}
-                <div className="col-span-1 lg:col-span-6 space-y-4">
+                {/* ── Detail / Calculator ───────────────────────────────── */}
+                <div className="col-span-1 lg:col-span-7 space-y-3">
                     <h2 className="text-xl font-extrabold text-gray-900 flex items-center gap-2">
                         <span>⏱️</span> Desglose y Conteo de Horas
                     </h2>
@@ -286,7 +331,7 @@ export default function ResumenHoras({ users = [], empresas = [], interventions 
                                 <span className="text-4xl mb-4">👈</span>
                                 <p className="text-lg font-semibold text-gray-700">Selecciona una empresa o cliente</p>
                                 <p className="text-sm text-gray-400 mt-1 max-w-xs">
-                                    Haz clic en la lista de la izquierda para ver el desglose de asistencias, filtrar las cobradas y calcular totales.
+                                    Haz clic en la lista de la izquierda para ver el desglose de asistencias y calcular totales.
                                 </p>
                             </motion.div>
                         ) : (
@@ -298,7 +343,7 @@ export default function ResumenHoras({ users = [], empresas = [], interventions 
                                 transition={{ duration: 0.2 }}
                                 className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden flex flex-col"
                             >
-                                {/* Header del detalle */}
+                                {/* Detail header */}
                                 <div className="bg-blue-600 px-6 py-5 text-white flex justify-between items-center">
                                     <div>
                                         <p className="text-xs font-semibold text-blue-100 uppercase tracking-widest">Desglose de asistencias</p>
@@ -313,7 +358,7 @@ export default function ResumenHoras({ users = [], empresas = [], interventions 
                                     </div>
                                 </div>
 
-                                {/* Calculadora interactiva flotante/fija */}
+                                {/* Interactive calculator */}
                                 <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border-b border-emerald-100 px-6 py-4 flex flex-col sm:flex-row justify-between items-center gap-3">
                                     <div>
                                         <p className="text-xs font-semibold text-teal-800 uppercase tracking-wider">Calculadora automática</p>
@@ -341,8 +386,8 @@ export default function ResumenHoras({ users = [], empresas = [], interventions 
                                     </div>
                                 </div>
 
-                                {/* Listado de asistencias */}
-                                <div className="divide-y divide-gray-150 overflow-y-auto max-h-[400px]">
+                                {/* Intervention list */}
+                                <div className="divide-y divide-gray-100 overflow-y-auto max-h-[430px]">
                                     {selectedItem.interventions.length === 0 ? (
                                         <div className="px-6 py-8 text-center text-gray-500 italic">
                                             No hay asistencias registradas para esta selección.
@@ -352,27 +397,27 @@ export default function ResumenHoras({ users = [], empresas = [], interventions 
                                             <div
                                                 key={item.id}
                                                 onClick={() => handleCheckToggle(item.id)}
-                                                className={`px-6 py-4 flex items-start gap-4 cursor-pointer transition-colors ${checkedInterventions[item.id]
+                                                className={`px-5 py-3.5 flex items-start gap-4 cursor-pointer transition-colors ${checkedInterventions[item.id]
                                                     ? 'bg-emerald-50/20 hover:bg-emerald-50/40'
                                                     : 'bg-gray-50/30 hover:bg-gray-50/80 opacity-60'
                                                     }`}
                                             >
                                                 {/* Checkbox */}
-                                                <div className="pt-1">
+                                                <div className="pt-0.5 shrink-0">
                                                     <input
                                                         type="checkbox"
                                                         checked={!!checkedInterventions[item.id]}
-                                                        onChange={() => { }} // Handled by outer div onClick
-                                                        className="h-5.5 w-5.5 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500 cursor-pointer"
+                                                        onChange={() => { }}
+                                                        className="h-4 w-4 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500 cursor-pointer"
                                                     />
                                                 </div>
 
-                                                {/* Información */}
+                                                {/* Info */}
                                                 <div className="flex-1 min-w-0">
                                                     <div className="flex justify-between items-start gap-2 flex-wrap">
-                                                        <div className="flex items-center gap-2">
+                                                        <div className="flex items-center gap-2 flex-wrap">
                                                             <span className="text-sm font-semibold text-gray-900">
-                                                                {new Date(item.date).toLocaleDateString()}
+                                                                {new Date(item.date).toLocaleDateString('es-ES')}
                                                             </span>
                                                             <span className={`px-2 py-0.5 text-[10px] font-extrabold rounded-full ${item.type === 'bono'
                                                                 ? 'bg-blue-100 text-blue-800'
@@ -381,28 +426,30 @@ export default function ResumenHoras({ users = [], empresas = [], interventions 
                                                                 {item.type === 'bono' ? '🎫 Bono' : '⚡ Puntual'}
                                                             </span>
                                                         </div>
-                                                        <span className="bg-gray-100 text-gray-800 text-xs font-bold px-2.5 py-1 rounded">
-                                                            {item.hours} hrs
+                                                        <span className="bg-gray-100 text-gray-800 text-xs font-bold px-2.5 py-1 rounded shrink-0">
+                                                            {item.hours}h
                                                         </span>
                                                     </div>
 
-                                                    {/* Cliente si es vista agrupada por empresa */}
-                                                    {groupBy === 'empresa' && (
+                                                    {/* Client name (company view) */}
+                                                    {groupBy === 'empresa' && item.clientName && (
                                                         <p className="text-xs text-blue-600 font-medium mt-1">
-                                                            👤 Cliente: {item.clientName}
+                                                            👤 {item.clientName}
                                                         </p>
                                                     )}
 
-                                                    {/* Horario si es puntual */}
+                                                    {/* Schedule for punctuals */}
                                                     {item.type === 'puntual' && (item.startTime || item.endTime) && (
                                                         <p className="text-xs text-purple-600 font-medium mt-1">
-                                                            🕒 Horario: {item.startTime && item.endTime ? `${item.startTime} - ${item.endTime}` : (item.startTime || item.endTime)}
+                                                            🕒 {item.startTime && item.endTime
+                                                                ? `${item.startTime} – ${item.endTime}`
+                                                                : (item.startTime || item.endTime)}
                                                         </p>
                                                     )}
 
-                                                    {/* Notas */}
+                                                    {/* Notes */}
                                                     {item.notes && (
-                                                        <p className="text-xs text-gray-600 bg-gray-50 p-2 rounded-lg mt-2 italic border border-gray-100">
+                                                        <p className="text-xs text-gray-500 bg-gray-50 p-2 rounded-lg mt-1.5 italic border border-gray-100 line-clamp-2">
                                                             {item.notes}
                                                         </p>
                                                     )}
