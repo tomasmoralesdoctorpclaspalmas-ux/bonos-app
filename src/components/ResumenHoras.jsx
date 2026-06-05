@@ -205,6 +205,9 @@ export default function ResumenHoras({ users = [], empresas = [], interventions 
                                         <th className="px-6 py-4 text-center text-xs font-bold text-blue-900 uppercase tracking-wider">
                                             {groupBy === 'empresa' ? 'Clientes' : 'Empresa'}
                                         </th>
+                                        <th className="px-6 py-4 text-center text-xs font-bold text-blue-900 uppercase tracking-wider">
+                                            Asistencias
+                                        </th>
                                         <th className="px-6 py-4 text-right text-xs font-bold text-blue-900 uppercase tracking-wider">
                                             Horas Totales
                                         </th>
@@ -213,7 +216,7 @@ export default function ResumenHoras({ users = [], empresas = [], interventions 
                                 <tbody className="divide-y divide-gray-150">
                                     {filteredSummaries.length === 0 ? (
                                         <tr>
-                                            <td colSpan="3" className="px-6 py-10 text-center text-gray-500 italic">
+                                            <td colSpan="4" className="px-6 py-10 text-center text-gray-500 italic">
                                                 No hay resultados que coincidan con la búsqueda.
                                             </td>
                                         </tr>
@@ -243,6 +246,11 @@ export default function ResumenHoras({ users = [], empresas = [], interventions 
                                                             {item.companyName}
                                                         </span>
                                                     )}
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-center">
+                                                    <span className="bg-gray-100 text-gray-750 px-2.5 py-1 rounded-full text-xs font-bold">
+                                                        {item.interventions.length} {item.interventions.length === 1 ? 'asist.' : 'asist.'}
+                                                    </span>
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
                                                     <span className="bg-blue-150 text-blue-800 font-extrabold px-3 py-1.5 rounded-lg text-xs">
