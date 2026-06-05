@@ -67,11 +67,31 @@ export default function ResumenHoras({
 
     /**
      * Does this record belong to a given user (individual client)?
+     *
+     * Priority:
+     *  1. clientId matches the user's UID directly
+     *  2. clientName matches the user's name (fuzzy)
+     *  3. clientId matches the user's empresaId  → bono interventions are stored
+     *     against the empresa, not the individual user
+     *  4. clientName matches the user's empresa name (fuzzy)
      */
     const belongsToUser = (item, user) => {
+        // 1. Direct UID match
         if (item.clientId && item.clientId === user.uid) return true;
+
+        // 2. Name matches the user's own name
         const clientName = item.clientName || '';
         if (nameMatch(clientName, user.name)) return true;
+
+        // 3. Intervention is linked to the user's empresa
+        if (user.empresaId && item.clientId && item.clientId === user.empresaId) return true;
+
+        // 4. clientName matches the user's empresa name
+        if (user.empresaId) {
+            const userEmpresa = empresas.find(e => e.id === user.empresaId);
+            if (userEmpresa && nameMatch(clientName, userEmpresa.name)) return true;
+        }
+
         return false;
     };
 
