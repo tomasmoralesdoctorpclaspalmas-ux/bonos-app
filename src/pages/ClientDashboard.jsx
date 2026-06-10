@@ -2,14 +2,18 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { getBonosByClient, getInterventionsByClient, getPunctualInterventionsByClientIds } from '../db';
+import {
+    getBonosByClient,
+    getInterventionsByClientIds,
+    getPunctualInterventionsByClientIds
+} from '../db';
 
 export default function ClientDashboard() {
     const [bonos, setBonos] = useState([]);
     const [interventions, setInterventions] = useState([]);
     const [punctualInterventions, setPunctualInterventions] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [activeTab, setActiveTab] = useState('bonos');
+    const [activeTab, setActiveTab] = useState('resumen');
 
     const { currentUser, logout } = useAuth();
     const navigate = useNavigate();
@@ -26,19 +30,20 @@ export default function ClientDashboard() {
             const empresaId = currentUser.empresaId || null;
             const uid = currentUser.uid;
 
-            // Collect all IDs to query: empresa ID (preferred) + user UID
-            // This ensures we find records regardless of which ID the admin used
+            // Buscar con AMBOS IDs para no perder registros independientemente
+            // de cuál haya usado el admin al registrar la asistencia
             const clientIds = [...new Set([empresaId, uid].filter(Boolean))];
             const primaryClientId = empresaId || uid;
 
-            const [bonosData, interventionsData, punctualInterventionsData] = await Promise.all([
+            const [bonosData, interventionsData, punctualData] = await Promise.all([
                 getBonosByClient(primaryClientId),
-                getInterventionsByClient(primaryClientId),
+                getInterventionsByClientIds(clientIds),
                 getPunctualInterventionsByClientIds(clientIds)
             ]);
+
             setBonos(bonosData);
             setInterventions(interventionsData);
-            setPunctualInterventions(punctualInterventionsData);
+            setPunctualInterventions(punctualData);
         } catch (err) {
             console.error('Error loading data:', err);
         } finally {
@@ -51,11 +56,17 @@ export default function ClientDashboard() {
         navigate('/login');
     };
 
-    const totalHours = bonos.reduce((sum, b) => sum + (b.hours || 0), 0);
-    const usedHours = bonos.reduce((sum, b) => sum + (b.hoursUsed || 0), 0);
-    const remainingHours = bonos.reduce((sum, b) => sum + (b.hoursRemaining || b.hours || 0), 0);
+    // ── totales ────────────────────────────────────────────────────────────
+    const totalBonoHours = bonos.reduce((sum, b) => sum + (parseFloat(b.hours) || 0), 0);
     const activeBonos = bonos.filter(b => b.status === 'active').length;
+    const remainingHours = bonos.reduce((sum, b) => sum + (parseFloat(b.hoursRemaining ?? b.hours) || 0), 0);
+
+    // Horas consumidas de bono (intervenciones sobre bono)
+    const bonoUsedHours = interventions.reduce((sum, i) => sum + (parseFloat(i.hoursUsed) || 0), 0);
+    // Horas de asistencias puntuales
     const totalPunctualHours = punctualInterventions.reduce((sum, p) => sum + (parseFloat(p.hours) || 0), 0);
+    // TOTAL combinado — equivalente exacto al que muestra el admin en "Control de Horas"
+    const totalConsumedHours = bonoUsedHours + totalPunctualHours;
 
     if (loading) {
         return (
@@ -92,16 +103,38 @@ export default function ClientDashboard() {
             </header>
 
             <main className="max-w-7xl mx-auto px-4 py-8">
-                {/* Statistics Cards */}
+
+                {/* ── Tarjeta principal: Total horas consumidas ── */}
+                <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="bg-gradient-to-r from-indigo-600 to-blue-500 text-white rounded-xl p-6 shadow-xl mb-6 flex flex-col sm:flex-row items-center justify-between gap-4"
+                >
+                    <div className="flex items-center gap-4">
+                        <span className="text-5xl">⏱️</span>
+                        <div>
+                            <p className="text-sm font-semibold opacity-80 uppercase tracking-widest">Total horas de asistencia</p>
+                            <p className="text-xs opacity-60 mt-0.5">
+                                {bonoUsedHours}h de bonos + {totalPunctualHours}h puntuales
+                            </p>
+                        </div>
+                    </div>
+                    <div className="text-right">
+                        <p className="text-6xl font-extrabold leading-none">{totalConsumedHours}h</p>
+                        <p className="text-xs opacity-70 mt-1">{interventions.length + punctualInterventions.length} asistencias en total</p>
+                    </div>
+                </motion.div>
+
+                {/* ── Statistics Cards ── */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                     <motion.div
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         className="bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-lg p-6 shadow-lg"
                     >
-                        <div className="text-3xl mb-2">⏱️</div>
-                        <div className="text-3xl font-bold mb-1">{totalHours}h</div>
-                        <div className="text-sm opacity-90">Horas Totales</div>
+                        <div className="text-3xl mb-2">📦</div>
+                        <div className="text-3xl font-bold mb-1">{totalBonoHours}h</div>
+                        <div className="text-sm opacity-90">Horas en Bonos</div>
                     </motion.div>
 
                     <motion.div
@@ -121,9 +154,9 @@ export default function ClientDashboard() {
                         transition={{ delay: 0.2 }}
                         className="bg-gradient-to-br from-orange-500 to-orange-600 text-white rounded-lg p-6 shadow-lg"
                     >
-                        <div className="text-3xl mb-2">✔️</div>
-                        <div className="text-3xl font-bold mb-1">{usedHours}h</div>
-                        <div className="text-sm opacity-90">Horas Usadas</div>
+                        <div className="text-3xl mb-2">⚡</div>
+                        <div className="text-3xl font-bold mb-1">{totalPunctualHours}h</div>
+                        <div className="text-sm opacity-90">Horas Puntuales</div>
                     </motion.div>
 
                     <motion.div
@@ -138,38 +171,105 @@ export default function ClientDashboard() {
                     </motion.div>
                 </div>
 
-                {/* Tabs */}
-                <div className="flex gap-4 mb-6">
-                    <button
-                        onClick={() => setActiveTab('bonos')}
-                        className={`px-6 py-3 rounded-lg font-semibold transition-all ${activeTab === 'bonos'
-                            ? 'bg-blue-600 text-white shadow-lg'
-                            : 'bg-white text-gray-700 hover:bg-gray-100'
-                            }`}
-                    >
-                        📋 Mis Bonos
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('interventions')}
-                        className={`px-6 py-3 rounded-lg font-semibold transition-all ${activeTab === 'interventions'
-                            ? 'bg-blue-600 text-white shadow-lg'
-                            : 'bg-white text-gray-700 hover:bg-gray-100'
-                            }`}
-                    >
-                        🔧 Historial Bonos
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('punctual')}
-                        className={`px-6 py-3 rounded-lg font-semibold transition-all ${activeTab === 'punctual'
-                            ? 'bg-blue-600 text-white shadow-lg'
-                            : 'bg-white text-gray-700 hover:bg-gray-100'
-                            }`}
-                    >
-                        ⚡ Asistencias Puntuales
-                    </button>
+                {/* ── Tabs ── */}
+                <div className="flex gap-3 mb-6 flex-wrap">
+                    {[
+                        { key: 'resumen', label: '📋 Resumen', color: 'blue' },
+                        { key: 'bonos', label: '🎫 Mis Bonos', color: 'blue' },
+                        { key: 'interventions', label: '🔧 Historial Bonos', color: 'blue' },
+                        { key: 'punctual', label: '⚡ Asistencias Puntuales', color: 'orange' },
+                    ].map(({ key, label }) => (
+                        <button
+                            key={key}
+                            onClick={() => setActiveTab(key)}
+                            className={`px-5 py-2.5 rounded-lg font-semibold transition-all text-sm ${activeTab === key
+                                ? 'bg-blue-600 text-white shadow-lg'
+                                : 'bg-white text-gray-700 hover:bg-gray-100'
+                                }`}
+                        >
+                            {label}
+                        </button>
+                    ))}
                 </div>
 
-                {/* Content */}
+                {/* ── Tab: Resumen combinado ── */}
+                {activeTab === 'resumen' && (
+                    <div className="space-y-4">
+                        <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+                            <div className="bg-blue-700 px-6 py-4">
+                                <h2 className="text-white font-bold text-lg">📋 Todas las asistencias registradas</h2>
+                                <p className="text-blue-200 text-sm mt-0.5">Bonos e intervenciones puntuales combinadas</p>
+                            </div>
+                            {interventions.length === 0 && punctualInterventions.length === 0 ? (
+                                <div className="text-center py-12 text-gray-500">
+                                    <p className="text-3xl mb-2">📭</p>
+                                    <p>No hay asistencias registradas todavía.</p>
+                                </div>
+                            ) : (
+                                <table className="min-w-full divide-y divide-gray-200">
+                                    <thead className="bg-gray-50">
+                                        <tr>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fecha</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tipo</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Horario</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Horas</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Notas</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="bg-white divide-y divide-gray-200">
+                                        {[
+                                            ...interventions.map(i => ({ ...i, _tipo: 'bono', _horas: parseFloat(i.hoursUsed) || 0 })),
+                                            ...punctualInterventions.map(p => ({ ...p, _tipo: 'puntual', _horas: parseFloat(p.hours) || 0 }))
+                                        ]
+                                            .sort((a, b) => new Date(b.date) - new Date(a.date))
+                                            .map((item) => (
+                                                <tr key={item.id} className="hover:bg-gray-50 transition-colors">
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                                        {new Date(item.date).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })}
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        <span className={`px-2 py-1 rounded-full text-xs font-bold ${item._tipo === 'bono'
+                                                            ? 'bg-blue-100 text-blue-800'
+                                                            : 'bg-orange-100 text-orange-800'
+                                                            }`}>
+                                                            {item._tipo === 'bono' ? '🎫 Bono' : '⚡ Puntual'}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                                                        {item.startTime && item.endTime ? `${item.startTime} - ${item.endTime}` : (item.startTime || item.endTime || '-')}
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        <span className={`text-sm font-bold px-2.5 py-1 rounded ${item._tipo === 'bono'
+                                                            ? 'bg-blue-100 text-blue-800'
+                                                            : 'bg-orange-100 text-orange-800'
+                                                            }`}>
+                                                            {item._horas}h
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-6 py-4 text-sm text-gray-500 max-w-xs truncate">
+                                                        {item.notes || '-'}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                    </tbody>
+                                    <tfoot className="bg-indigo-50">
+                                        <tr>
+                                            <td colSpan="3" className="px-6 py-3 text-sm font-bold text-indigo-900 text-right">TOTAL HORAS</td>
+                                            <td className="px-6 py-3">
+                                                <span className="bg-indigo-600 text-white text-sm font-extrabold px-3 py-1.5 rounded-lg">
+                                                    {totalConsumedHours}h
+                                                </span>
+                                            </td>
+                                            <td></td>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+                            )}
+                        </div>
+                    </div>
+                )}
+
+                {/* ── Tab: Bonos ── */}
                 {activeTab === 'bonos' && (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {bonos.length === 0 ? (
@@ -196,15 +296,18 @@ export default function ClientDashboard() {
                                             {bono.status === 'active' ? 'Activo' : bono.status === 'depleted' ? 'Agotado' : 'Expirado'}
                                         </span>
                                     </div>
-
                                     <div className="space-y-2">
                                         <div className="flex justify-between">
                                             <span className="text-gray-600">Horas totales:</span>
                                             <span className="font-bold">{bono.hours}h</span>
                                         </div>
                                         <div className="flex justify-between">
+                                            <span className="text-gray-600">Horas usadas:</span>
+                                            <span className="font-bold text-orange-600">{bono.hoursUsed || 0}h</span>
+                                        </div>
+                                        <div className="flex justify-between">
                                             <span className="text-gray-600">Horas restantes:</span>
-                                            <span className="font-bold text-green-600">{bono.hoursRemaining || bono.hours}h</span>
+                                            <span className="font-bold text-green-600">{bono.hoursRemaining ?? bono.hours}h</span>
                                         </div>
                                         <div className="flex justify-between">
                                             <span className="text-gray-600">Expiración:</span>
@@ -218,72 +321,87 @@ export default function ClientDashboard() {
                         )}
                     </div>
                 )}
-                
+
+                {/* ── Tab: Historial Bonos ── */}
                 {activeTab === 'interventions' && (
-                    <div className="bg-white rounded-lg shadow-lg overflow-hidden">
-                        {interventions.length === 0 ? (
-                            <div className="text-center py-12">
-                                <p className="text-2xl text-gray-400 mb-2">🔧</p>
-                                <p className="text-xl text-gray-600">No hay intervenciones registradas</p>
+                    <div className="space-y-4">
+                        {/* Totalizador */}
+                        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-lg p-5 text-white shadow-lg flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <span className="text-3xl">🔧</span>
+                                <div>
+                                    <p className="text-sm font-semibold opacity-90">Total horas consumidas de bonos</p>
+                                    <p className="text-xs opacity-75 mt-0.5">{interventions.length} intervención{interventions.length !== 1 ? 'es' : ''} registrada{interventions.length !== 1 ? 's' : ''}</p>
+                                </div>
                             </div>
-                        ) : (
-                            <table className="min-w-full divide-y divide-gray-200">
-                                <thead className="bg-gray-50">
-                                    <tr>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fecha</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Horario</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Horas</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Notas</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Evidencias</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="bg-white divide-y divide-gray-200">
-                                    {interventions.map((intervention) => (
-                                        <tr key={intervention.id}>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                                {new Date(intervention.date).toLocaleDateString('es-ES', {
-                                                    day: 'numeric',
-                                                    month: 'long',
-                                                    year: 'numeric'
-                                                })}
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                                                {intervention.startTime && intervention.endTime ? `${intervention.startTime} - ${intervention.endTime}` : (intervention.startTime || intervention.endTime || '-')}
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-orange-600">
-                                                -{intervention.hoursUsed}h
-                                            </td>
-                                            <td className="px-6 py-4 text-sm text-gray-500">
-                                                <div className="max-w-xs overflow-hidden text-ellipsis">
-                                                    {intervention.notes || '-'}
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4 text-sm text-gray-500">
-                                                {intervention.images && intervention.images.length > 0 ? (
-                                                    <div className="flex gap-1 overflow-x-auto max-w-[150px] pb-1">
-                                                        {intervention.images.map((img, idx) => (
-                                                            <img
-                                                                key={idx}
-                                                                src={img}
-                                                                alt="Evidencia"
-                                                                className="h-10 w-10 object-cover rounded cursor-pointer hover:opacity-80"
-                                                                onClick={() => window.open(img, '_blank')}
-                                                            />
-                                                        ))}
-                                                    </div>
-                                                ) : '-'}
-                                            </td>
+                            <p className="text-4xl font-extrabold">{bonoUsedHours}h</p>
+                        </div>
+
+                        <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+                            {interventions.length === 0 ? (
+                                <div className="text-center py-12">
+                                    <p className="text-2xl text-gray-400 mb-2">🔧</p>
+                                    <p className="text-xl text-gray-600">No hay intervenciones registradas</p>
+                                </div>
+                            ) : (
+                                <table className="min-w-full divide-y divide-gray-200">
+                                    <thead className="bg-blue-50">
+                                        <tr>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-blue-800 uppercase">Fecha</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-blue-800 uppercase">Horario</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-blue-800 uppercase">Horas</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-blue-800 uppercase">Notas</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-blue-800 uppercase">Evidencias</th>
                                         </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        )}
+                                    </thead>
+                                    <tbody className="bg-white divide-y divide-gray-200">
+                                        {interventions.map((intervention) => (
+                                            <tr key={intervention.id} className="hover:bg-blue-50/30 transition-colors">
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                                    {new Date(intervention.date).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })}
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                                                    {intervention.startTime && intervention.endTime ? `${intervention.startTime} - ${intervention.endTime}` : (intervention.startTime || intervention.endTime || '-')}
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                    <span className="bg-blue-100 text-blue-800 text-sm font-bold px-2.5 py-1 rounded">
+                                                        {parseFloat(intervention.hoursUsed) || 0}h
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4 text-sm text-gray-500">
+                                                    <div className="max-w-xs overflow-hidden text-ellipsis">{intervention.notes || '-'}</div>
+                                                </td>
+                                                <td className="px-6 py-4 text-sm text-gray-500">
+                                                    {intervention.images && intervention.images.length > 0 ? (
+                                                        <div className="flex gap-1 overflow-x-auto max-w-[150px] pb-1">
+                                                            {intervention.images.map((img, idx) => (
+                                                                <img key={idx} src={img} alt="Evidencia" className="h-10 w-10 object-cover rounded cursor-pointer hover:opacity-80" onClick={() => window.open(img, '_blank')} />
+                                                            ))}
+                                                        </div>
+                                                    ) : '-'}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                    <tfoot className="bg-blue-50">
+                                        <tr>
+                                            <td colSpan="2" className="px-6 py-3 text-sm font-bold text-blue-900 text-right">TOTAL</td>
+                                            <td className="px-6 py-3">
+                                                <span className="bg-blue-700 text-white text-sm font-extrabold px-3 py-1 rounded">{bonoUsedHours}h</span>
+                                            </td>
+                                            <td colSpan="2"></td>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+                            )}
+                        </div>
                     </div>
                 )}
-                
+
+                {/* ── Tab: Asistencias Puntuales ── */}
                 {activeTab === 'punctual' && (
                     <div className="space-y-4">
-                        {/* Resumen de horas puntuales */}
+                        {/* Totalizador */}
                         <div className="bg-gradient-to-r from-orange-500 to-amber-500 rounded-lg p-5 text-white shadow-lg flex items-center justify-between">
                             <div className="flex items-center gap-3">
                                 <span className="text-3xl">⚡</span>
@@ -292,12 +410,9 @@ export default function ClientDashboard() {
                                     <p className="text-xs opacity-75 mt-0.5">{punctualInterventions.length} asistencia{punctualInterventions.length !== 1 ? 's' : ''} registrada{punctualInterventions.length !== 1 ? 's' : ''}</p>
                                 </div>
                             </div>
-                            <div className="text-right">
-                                <p className="text-4xl font-extrabold">{totalPunctualHours}h</p>
-                            </div>
+                            <p className="text-4xl font-extrabold">{totalPunctualHours}h</p>
                         </div>
 
-                        {/* Tabla de asistencias */}
                         <div className="bg-white rounded-lg shadow-lg overflow-hidden">
                             {punctualInterventions.length === 0 ? (
                                 <div className="text-center py-12">
@@ -319,11 +434,7 @@ export default function ClientDashboard() {
                                         {punctualInterventions.map((intervention) => (
                                             <tr key={intervention.id} className="hover:bg-orange-50/30 transition-colors">
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                                    {new Date(intervention.date).toLocaleDateString('es-ES', {
-                                                        day: 'numeric',
-                                                        month: 'long',
-                                                        year: 'numeric'
-                                                    })}
+                                                    {new Date(intervention.date).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })}
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                                                     {intervention.startTime && intervention.endTime ? `${intervention.startTime} - ${intervention.endTime}` : (intervention.startTime || intervention.endTime || '-')}
@@ -334,21 +445,13 @@ export default function ClientDashboard() {
                                                     </span>
                                                 </td>
                                                 <td className="px-6 py-4 text-sm text-gray-500">
-                                                    <div className="max-w-xs overflow-hidden text-ellipsis">
-                                                        {intervention.notes || '-'}
-                                                    </div>
+                                                    <div className="max-w-xs overflow-hidden text-ellipsis">{intervention.notes || '-'}</div>
                                                 </td>
                                                 <td className="px-6 py-4 text-sm text-gray-500">
                                                     {intervention.images && intervention.images.length > 0 ? (
                                                         <div className="flex gap-1 overflow-x-auto max-w-[150px] pb-1">
                                                             {intervention.images.map((img, idx) => (
-                                                                <img
-                                                                    key={idx}
-                                                                    src={img}
-                                                                    alt="Evidencia"
-                                                                    className="h-10 w-10 object-cover rounded cursor-pointer hover:opacity-80"
-                                                                    onClick={() => window.open(img, '_blank')}
-                                                                />
+                                                                <img key={idx} src={img} alt="Evidencia" className="h-10 w-10 object-cover rounded cursor-pointer hover:opacity-80" onClick={() => window.open(img, '_blank')} />
                                                             ))}
                                                         </div>
                                                     ) : '-'}
@@ -356,14 +459,11 @@ export default function ClientDashboard() {
                                             </tr>
                                         ))}
                                     </tbody>
-                                    {/* Footer con total */}
                                     <tfoot className="bg-orange-50">
                                         <tr>
                                             <td colSpan="2" className="px-6 py-3 text-sm font-bold text-orange-900 text-right">TOTAL</td>
                                             <td className="px-6 py-3">
-                                                <span className="bg-orange-600 text-white text-sm font-extrabold px-3 py-1 rounded">
-                                                    {totalPunctualHours}h
-                                                </span>
+                                                <span className="bg-orange-600 text-white text-sm font-extrabold px-3 py-1 rounded">{totalPunctualHours}h</span>
                                             </td>
                                             <td colSpan="2"></td>
                                         </tr>
@@ -373,6 +473,7 @@ export default function ClientDashboard() {
                         </div>
                     </div>
                 )}
+
             </main>
         </div>
     );

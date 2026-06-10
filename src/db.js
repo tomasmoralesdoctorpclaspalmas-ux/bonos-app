@@ -323,6 +323,42 @@ export const getInterventionsByClient = async (clientId) => {
     }
 };
 
+/**
+ * Fetches bono interventions for multiple client IDs (e.g. empresaId + uid).
+ * Deduplicates results by document ID.
+ */
+export const getInterventionsByClientIds = async (clientIds) => {
+    try {
+        const uniqueIds = [...new Set(clientIds.filter(Boolean))];
+        if (uniqueIds.length === 0) return [];
+
+        const allResults = new Map();
+        await Promise.all(
+            uniqueIds.map(async (id) => {
+                const q = query(
+                    collection(db, INTERVENTIONS_COLLECTION),
+                    where('clientId', '==', id)
+                );
+                const snap = await getDocs(q);
+                snap.forEach((docSnap) => {
+                    if (!allResults.has(docSnap.id)) {
+                        allResults.set(docSnap.id, {
+                            id: docSnap.id,
+                            ...docSnap.data(),
+                            date: docSnap.data().date?.toDate().toISOString()
+                        });
+                    }
+                });
+            })
+        );
+
+        return [...allResults.values()].sort((a, b) => new Date(b.date) - new Date(a.date));
+    } catch (error) {
+        console.error('Error getting interventions by multiple clientIds:', error);
+        throw error;
+    }
+};
+
 // Add intervention
 export const addIntervention = async (interventionData) => {
     try {
