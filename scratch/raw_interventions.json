@@ -1,0 +1,109 @@
+{
+  "documents": [
+    {
+      "name": "projects/bonos-491fa/databases/(default)/documents/interventions/JQ8uid7HQptTvHN0zb5r",
+      "fields": {
+        "bonoId": {
+          "stringValue": "qA4GyStCFIlmAR0wQPDO"
+        },
+        "notes": {
+          "stringValue": "sfSFSFD "
+        },
+        "clientName": {
+          "stringValue": "Espacio Exterior"
+        },
+        "createdAt": {
+          "timestampValue": "2026-02-05T11:37:57.908Z"
+        },
+        "hoursUsed": {
+          "integerValue": "2"
+        },
+        "date": {
+          "timestampValue": "2026-02-05T11:37:57.908Z"
+        },
+        "clientId": {
+          "stringValue": "wVsmKVq4OWZGrBgOm8g8ok92jdM2"
+        },
+        "images": {
+          "arrayValue": {}
+        }
+      },
+      "createTime": "2026-02-05T11:38:00.405717Z",
+      "updateTime": "2026-02-05T11:38:00.405717Z"
+    },
+    {
+      "name": "projects/bonos-491fa/databases/(default)/documents/interventions/P7QFn3HKIepKJMg5ppTr",
+      "fields": {
+        "notes": {
+          "stringValue": "Intervenciones en equipos remotas y configuraciones de equipos nuevos "
+        },
+        "clientName": {
+          "stringValue": "Adrian"
+        },
+        "createdAt": {
+          "timestampValue": "2026-03-19T13:37:32.280Z"
+        },
+        "startTime": {
+          "stringValue": ""
+        },
+        "images": {
+          "arrayValue": {}
+        },
+        "date": {
+          "timestampValue": "2026-02-05T00:00:00Z"
+        },
+        "endTime": {
+          "stringValue": ""
+        },
+        "bonoId": {
+          "stringValue": "leePCbEQcxih6GFsyfFX"
+        },
+        "clientId": {
+          "stringValue": "WAzX7iRgPjPRjlVtuF1xcplXEVj2"
+        },
+        "hoursUsed": {
+          "integerValue": "9"
+        }
+      },
+      "createTime": "2026-03-19T13:37:31.292855Z",
+      "updateTime": "2026-03-19T13:37:31.292855Z"
+    },
+    {
+      "name": "projects/bonos-491fa/databases/(default)/documents/interventions/rgPvOEAaFJzZowzWDWny",
+      "fields": {
+        "bonoId": {
+          "stringValue": "leePCbEQcxih6GFsyfFX"
+        },
+        "clientId": {
+          "stringValue": "WAzX7iRgPjPRjlVtuF1xcplXEVj2"
+        },
+        "hoursUsed": {
+          "integerValue": "1"
+        },
+        "notes": {
+          "stringValue": "remoto office"
+        },
+        "clientName": {
+          "stringValue": "Adrian"
+        },
+        "createdAt": {
+          "timestampValue": "2026-02-05T19:30:56.423Z"
+        },
+        "startTime": {
+          "stringValue": "20:00"
+        },
+        "date": {
+          "timestampValue": "2026-02-05T00:00:00Z"
+        },
+        "endTime": {
+          "stringValue": "20:33"
+        },
+        "images": {
+          "arrayValue": {}
+        }
+      },
+      "createTime": "2026-02-05T19:31:00.742052Z",
+      "updateTime": "2026-02-05T19:31:00.742052Z"
+    }
+  ]
+}

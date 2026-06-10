@@ -1,0 +1,84 @@
+{
+  "documents": [
+    {
+      "name": "projects/bonos-491fa/databases/(default)/documents/empresas/2BfcC1uk8NVm1nMKbbx4",
+      "fields": {
+        "name": {
+          "stringValue": "ESPACIO EXTERIOR ATLANTICO SL"
+        },
+        "createdAt": {
+          "timestampValue": "2026-03-24T09:42:14.731Z"
+        },
+        "updatedAt": {
+          "timestampValue": "2026-03-24T09:42:14.731Z"
+        }
+      },
+      "createTime": "2026-03-24T09:42:14.775154Z",
+      "updateTime": "2026-03-24T09:42:14.775154Z"
+    },
+    {
+      "name": "projects/bonos-491fa/databases/(default)/documents/empresas/DbRJlHNfHl9hbnmbpFPg",
+      "fields": {
+        "updatedAt": {
+          "timestampValue": "2026-03-24T09:50:04.491Z"
+        },
+        "name": {
+          "stringValue": "APP TRADUCCIONES"
+        },
+        "createdAt": {
+          "timestampValue": "2026-03-24T09:50:04.491Z"
+        }
+      },
+      "createTime": "2026-03-24T09:50:04.512732Z",
+      "updateTime": "2026-03-24T09:50:04.512732Z"
+    },
+    {
+      "name": "projects/bonos-491fa/databases/(default)/documents/empresas/WpGtc6zOM8m1B837JdGU",
+      "fields": {
+        "updatedAt": {
+          "timestampValue": "2026-03-24T09:48:33.931Z"
+        },
+        "createdAt": {
+          "timestampValue": "2026-03-24T09:48:33.931Z"
+        },
+        "name": {
+          "stringValue": "STYLE CAR CANARIAS"
+        }
+      },
+      "createTime": "2026-03-24T09:48:33.986778Z",
+      "updateTime": "2026-03-24T09:48:33.986778Z"
+    },
+    {
+      "name": "projects/bonos-491fa/databases/(default)/documents/empresas/g1jIKFyQxUrH3oh6he14",
+      "fields": {
+        "name": {
+          "stringValue": "Prueba"
+        },
+        "createdAt": {
+          "timestampValue": "2026-03-23T17:32:00.112Z"
+        },
+        "updatedAt": {
+          "timestampValue": "2026-03-23T17:32:00.112Z"
+        }
+      },
+      "createTime": "2026-03-23T17:31:57.711747Z",
+      "updateTime": "2026-03-23T17:31:57.711747Z"
+    },
+    {
+      "name": "projects/bonos-491fa/databases/(default)/documents/empresas/pisaZ3B38QzRUaIOpnxL",
+      "fields": {
+        "createdAt": {
+          "timestampValue": "2026-06-03T13:48:37.722Z"
+        },
+        "name": {
+          "stringValue": "LA CASA DE LAS PINTURAS S.L"
+        },
+        "updatedAt": {
+          "timestampValue": "2026-06-03T13:48:37.722Z"
+        }
+      },
+      "createTime": "2026-06-03T13:48:38.076199Z",
+      "updateTime": "2026-06-03T13:48:38.076199Z"
+    }
+  ]
+}

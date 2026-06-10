@@ -490,6 +490,44 @@ export const getPunctualInterventionsByClient = async (clientId) => {
     }
 };
 
+/**
+ * Fetches punctual interventions for multiple client IDs (e.g. empresaId + uid).
+ * Deduplicates results by document ID.
+ */
+export const getPunctualInterventionsByClientIds = async (clientIds) => {
+    try {
+        const uniqueIds = [...new Set(clientIds.filter(Boolean))];
+        if (uniqueIds.length === 0) return [];
+
+        // Run one query per ID and merge results (Firestore 'in' is limited to 10 values,
+        // but we usually have only 2 IDs here, so individual queries are fine)
+        const allResults = new Map();
+        await Promise.all(
+            uniqueIds.map(async (id) => {
+                const q = query(
+                    collection(db, PUNCTUAL_INTERVENTIONS_COLLECTION),
+                    where('clientId', '==', id)
+                );
+                const snap = await getDocs(q);
+                snap.forEach((docSnap) => {
+                    if (!allResults.has(docSnap.id)) {
+                        allResults.set(docSnap.id, {
+                            id: docSnap.id,
+                            ...docSnap.data(),
+                            date: docSnap.data().date?.toDate().toISOString()
+                        });
+                    }
+                });
+            })
+        );
+
+        return [...allResults.values()].sort((a, b) => new Date(b.date) - new Date(a.date));
+    } catch (error) {
+        console.error('Error getting punctual interventions by multiple clientIds:', error);
+        throw error;
+    }
+};
+
 // Add punctual intervention
 export const addPunctualIntervention = async (data) => {
     try {

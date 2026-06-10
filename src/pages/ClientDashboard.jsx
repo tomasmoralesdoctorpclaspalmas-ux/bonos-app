@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { getBonosByClient, getInterventionsByClient, getPunctualInterventionsByClient } from '../db';
+import { getBonosByClient, getInterventionsByClient, getPunctualInterventionsByClientIds } from '../db';
 
 export default function ClientDashboard() {
     const [bonos, setBonos] = useState([]);
@@ -23,12 +23,18 @@ export default function ClientDashboard() {
     const loadData = async () => {
         try {
             setLoading(true);
-            const clientId = currentUser.empresaId || currentUser.uid;
-            
+            const empresaId = currentUser.empresaId || null;
+            const uid = currentUser.uid;
+
+            // Collect all IDs to query: empresa ID (preferred) + user UID
+            // This ensures we find records regardless of which ID the admin used
+            const clientIds = [...new Set([empresaId, uid].filter(Boolean))];
+            const primaryClientId = empresaId || uid;
+
             const [bonosData, interventionsData, punctualInterventionsData] = await Promise.all([
-                getBonosByClient(clientId),
-                getInterventionsByClient(clientId),
-                getPunctualInterventionsByClient(clientId)
+                getBonosByClient(primaryClientId),
+                getInterventionsByClient(primaryClientId),
+                getPunctualInterventionsByClientIds(clientIds)
             ]);
             setBonos(bonosData);
             setInterventions(interventionsData);
@@ -49,6 +55,7 @@ export default function ClientDashboard() {
     const usedHours = bonos.reduce((sum, b) => sum + (b.hoursUsed || 0), 0);
     const remainingHours = bonos.reduce((sum, b) => sum + (b.hoursRemaining || b.hours || 0), 0);
     const activeBonos = bonos.filter(b => b.status === 'active').length;
+    const totalPunctualHours = punctualInterventions.reduce((sum, p) => sum + (parseFloat(p.hours) || 0), 0);
 
     if (loading) {
         return (
@@ -275,64 +282,95 @@ export default function ClientDashboard() {
                 )}
                 
                 {activeTab === 'punctual' && (
-                    <div className="bg-white rounded-lg shadow-lg overflow-hidden">
-                        {punctualInterventions.length === 0 ? (
-                            <div className="text-center py-12">
-                                <p className="text-2xl text-gray-400 mb-2">⚡</p>
-                                <p className="text-xl text-gray-600">No hay asistencias puntuales registradas</p>
+                    <div className="space-y-4">
+                        {/* Resumen de horas puntuales */}
+                        <div className="bg-gradient-to-r from-orange-500 to-amber-500 rounded-lg p-5 text-white shadow-lg flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <span className="text-3xl">⚡</span>
+                                <div>
+                                    <p className="text-sm font-semibold opacity-90">Total horas en asistencias puntuales</p>
+                                    <p className="text-xs opacity-75 mt-0.5">{punctualInterventions.length} asistencia{punctualInterventions.length !== 1 ? 's' : ''} registrada{punctualInterventions.length !== 1 ? 's' : ''}</p>
+                                </div>
                             </div>
-                        ) : (
-                            <table className="min-w-full divide-y divide-gray-200">
-                                <thead className="bg-gray-50">
-                                    <tr>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fecha</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Horario</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Horas</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Notas</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Evidencias</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="bg-white divide-y divide-gray-200">
-                                    {punctualInterventions.map((intervention) => (
-                                        <tr key={intervention.id}>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                                {new Date(intervention.date).toLocaleDateString('es-ES', {
-                                                    day: 'numeric',
-                                                    month: 'long',
-                                                    year: 'numeric'
-                                                })}
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                                                {intervention.startTime && intervention.endTime ? `${intervention.startTime} - ${intervention.endTime}` : (intervention.startTime || intervention.endTime || '-')}
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-orange-600">
-                                                {intervention.hours}h
-                                            </td>
-                                            <td className="px-6 py-4 text-sm text-gray-500">
-                                                <div className="max-w-xs overflow-hidden text-ellipsis">
-                                                    {intervention.notes || '-'}
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4 text-sm text-gray-500">
-                                                {intervention.images && intervention.images.length > 0 ? (
-                                                    <div className="flex gap-1 overflow-x-auto max-w-[150px] pb-1">
-                                                        {intervention.images.map((img, idx) => (
-                                                            <img
-                                                                key={idx}
-                                                                src={img}
-                                                                alt="Evidencia"
-                                                                className="h-10 w-10 object-cover rounded cursor-pointer hover:opacity-80"
-                                                                onClick={() => window.open(img, '_blank')}
-                                                            />
-                                                        ))}
-                                                    </div>
-                                                ) : '-'}
-                                            </td>
+                            <div className="text-right">
+                                <p className="text-4xl font-extrabold">{totalPunctualHours}h</p>
+                            </div>
+                        </div>
+
+                        {/* Tabla de asistencias */}
+                        <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+                            {punctualInterventions.length === 0 ? (
+                                <div className="text-center py-12">
+                                    <p className="text-2xl text-gray-400 mb-2">⚡</p>
+                                    <p className="text-xl text-gray-600">No hay asistencias puntuales registradas</p>
+                                </div>
+                            ) : (
+                                <table className="min-w-full divide-y divide-gray-200">
+                                    <thead className="bg-orange-50">
+                                        <tr>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-orange-800 uppercase">Fecha</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-orange-800 uppercase">Horario</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-orange-800 uppercase">Horas</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-orange-800 uppercase">Notas</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-orange-800 uppercase">Evidencias</th>
                                         </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        )}
+                                    </thead>
+                                    <tbody className="bg-white divide-y divide-gray-200">
+                                        {punctualInterventions.map((intervention) => (
+                                            <tr key={intervention.id} className="hover:bg-orange-50/30 transition-colors">
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                                    {new Date(intervention.date).toLocaleDateString('es-ES', {
+                                                        day: 'numeric',
+                                                        month: 'long',
+                                                        year: 'numeric'
+                                                    })}
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                                                    {intervention.startTime && intervention.endTime ? `${intervention.startTime} - ${intervention.endTime}` : (intervention.startTime || intervention.endTime || '-')}
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                    <span className="bg-orange-100 text-orange-800 text-sm font-bold px-2.5 py-1 rounded">
+                                                        {parseFloat(intervention.hours) || 0}h
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4 text-sm text-gray-500">
+                                                    <div className="max-w-xs overflow-hidden text-ellipsis">
+                                                        {intervention.notes || '-'}
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-4 text-sm text-gray-500">
+                                                    {intervention.images && intervention.images.length > 0 ? (
+                                                        <div className="flex gap-1 overflow-x-auto max-w-[150px] pb-1">
+                                                            {intervention.images.map((img, idx) => (
+                                                                <img
+                                                                    key={idx}
+                                                                    src={img}
+                                                                    alt="Evidencia"
+                                                                    className="h-10 w-10 object-cover rounded cursor-pointer hover:opacity-80"
+                                                                    onClick={() => window.open(img, '_blank')}
+                                                                />
+                                                            ))}
+                                                        </div>
+                                                    ) : '-'}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                    {/* Footer con total */}
+                                    <tfoot className="bg-orange-50">
+                                        <tr>
+                                            <td colSpan="2" className="px-6 py-3 text-sm font-bold text-orange-900 text-right">TOTAL</td>
+                                            <td className="px-6 py-3">
+                                                <span className="bg-orange-600 text-white text-sm font-extrabold px-3 py-1 rounded">
+                                                    {totalPunctualHours}h
+                                                </span>
+                                            </td>
+                                            <td colSpan="2"></td>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+                            )}
+                        </div>
                     </div>
                 )}
             </main>

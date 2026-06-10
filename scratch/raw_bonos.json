@@ -1,0 +1,50 @@
+{
+  "documents": [
+    {
+      "name": "projects/bonos-491fa/databases/(default)/documents/bonos/leePCbEQcxih6GFsyfFX",
+      "fields": {
+        "notes": {
+          "stringValue": "ASISTENCIA REMOTA"
+        },
+        "hoursUsed": {
+          "integerValue": "10"
+        },
+        "issueDate": {
+          "timestampValue": "2026-02-05T00:00:00Z"
+        },
+        "expiryDate": {
+          "nullValue": null
+        },
+        "updatedAt": {
+          "timestampValue": "2026-03-19T13:37:32.574Z"
+        },
+        "neverExpires": {
+          "booleanValue": true
+        },
+        "status": {
+          "stringValue": "depleted"
+        },
+        "clientName": {
+          "stringValue": "Adrian"
+        },
+        "clientId": {
+          "stringValue": "WAzX7iRgPjPRjlVtuF1xcplXEVj2"
+        },
+        "service": {
+          "stringValue": "ASISTENCIA REMOTA"
+        },
+        "hours": {
+          "integerValue": "10"
+        },
+        "hoursRemaining": {
+          "integerValue": "0"
+        },
+        "createdAt": {
+          "timestampValue": "2026-02-05T12:20:49.234Z"
+        }
+      },
+      "createTime": "2026-02-05T12:20:44.897565Z",
+      "updateTime": "2026-03-19T13:37:31.476063Z"
+    }
+  ]
+}
