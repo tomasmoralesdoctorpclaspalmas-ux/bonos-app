@@ -3,10 +3,50 @@ import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
-    getBonosByClient,
-    getInterventionsByClientIds,
-    getPunctualInterventionsByClientIds
+    getBonos,
+    getInterventions,
+    getPunctualInterventions,
+    getEmpresas
 } from '../db';
+
+// ─── helpers para filtrado difuso idénticos al panel del administrador ───
+const toNum = (v) => {
+    const n = parseFloat(v);
+    return isNaN(n) ? 0 : n;
+};
+
+const normalize = (s) => (s || '').toLowerCase().trim();
+
+const nameMatch = (a, b) => {
+    const na = normalize(a);
+    const nb = normalize(b);
+    if (!na || !nb) return false;
+    if (na === nb) return true;
+    if (na.length >= 4 && nb.includes(na)) return true;
+    if (nb.length >= 4 && na.includes(nb)) return true;
+    return false;
+};
+
+const belongsToUser = (item, user, empresas) => {
+    if (!user) return false;
+    // 1. Coincidencia directa de ID
+    if (item.clientId && item.clientId === user.uid) return true;
+
+    // 2. Coincidencia por nombre del usuario
+    const clientName = item.clientName || '';
+    if (nameMatch(clientName, user.name)) return true;
+
+    // 3. Coincidencia por empresa asignada
+    if (user.empresaId && item.clientId && item.clientId === user.empresaId) return true;
+
+    // 4. Coincidencia por nombre de la empresa del usuario
+    if (user.empresaId) {
+        const userEmpresa = empresas.find(e => e.id === user.empresaId);
+        if (userEmpresa && nameMatch(clientName, userEmpresa.name)) return true;
+    }
+
+    return false;
+};
 
 export default function ClientDashboard() {
     const [bonos, setBonos] = useState([]);
@@ -27,23 +67,43 @@ export default function ClientDashboard() {
     const loadData = async () => {
         try {
             setLoading(true);
-            const empresaId = currentUser.empresaId || null;
-            const uid = currentUser.uid;
 
-            // Buscar con AMBOS IDs para no perder registros independientemente
-            // de cuál haya usado el admin al registrar la asistencia
-            const clientIds = [...new Set([empresaId, uid].filter(Boolean))];
-            const primaryClientId = empresaId || uid;
-
-            const [bonosData, interventionsData, punctualData] = await Promise.all([
-                getBonosByClient(primaryClientId),
-                getInterventionsByClientIds(clientIds),
-                getPunctualInterventionsByClientIds(clientIds)
+            const [allBonos, allInterventions, allPunctuals, allEmpresas] = await Promise.all([
+                getBonos(),
+                getInterventions().catch(err => {
+                    console.error('Error loading interventions:', err);
+                    return [];
+                }),
+                getPunctualInterventions().catch(err => {
+                    console.error('Error loading punctual:', err);
+                    return [];
+                }),
+                getEmpresas().catch(err => {
+                    console.error('Error loading empresas:', err);
+                    return [];
+                })
             ]);
 
-            setBonos(bonosData);
-            setInterventions(interventionsData);
-            setPunctualInterventions(punctualData);
+            // Filtrar todos del lado del cliente para garantizar 100% de paridad con admin
+            const filteredBonos = allBonos.filter(b => belongsToUser(b, currentUser, allEmpresas));
+            
+            const filteredInterventions = allInterventions
+                .filter(i => belongsToUser(i, currentUser, allEmpresas))
+                .map(i => ({
+                    ...i,
+                    date: i.date && typeof i.date !== 'string' && i.date.toDate ? i.date.toDate().toISOString() : i.date
+                }));
+
+            const filteredPunctuals = allPunctuals
+                .filter(p => belongsToUser(p, currentUser, allEmpresas))
+                .map(p => ({
+                    ...p,
+                    date: p.date && typeof p.date !== 'string' && p.date.toDate ? p.date.toDate().toISOString() : p.date
+                }));
+
+            setBonos(filteredBonos);
+            setInterventions(filteredInterventions);
+            setPunctualInterventions(filteredPunctuals);
         } catch (err) {
             console.error('Error loading data:', err);
         } finally {
